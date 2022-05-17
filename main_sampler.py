@@ -38,7 +38,7 @@ parser.add_argument('--start_epoch', type=int, default=0, help='Start epoch numb
 parser.add_argument('--mod', type=str, default='mod', choices=Models.allowed_models(), help='Model for use')
 parser.add_argument('--batch_size', type=int, default=10, help='batch size')
 parser.add_argument('--val_batch_size', default=None, help='batch size selection validation set')
-parser.add_argument('--learning_rate', metavar='lr', type=float, default=0.0001, help='learning rate')
+parser.add_argument('--learning_rate', metavar='lr', type=float, default=0.001, help='learning rate')
 parser.add_argument('--no_cuda', action='store_true', help='no gpu usage')
 
 parser.add_argument('--evaluate', action='store_true', help='only evaluate')
@@ -56,7 +56,7 @@ parser.add_argument('--test_mode', action='store_true', help='Do not use resume'
 parser.add_argument('--pretrained', type=str2bool, nargs='?', const=True, default=True, help='use pretrained model')
 parser.add_argument('--load_external_mod', type=str2bool, nargs='?', const=True, default=False, help='path to external mod')
 #Sampler
-parser.add_argument('--n_sample', type=int, default=10000, help='Number of sample point')
+parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 
 parser.add_argument('--alpha', type=float, default=0.5, help='Number of sample point')
 parser.add_argument('--beta', type=int, default=1, help='Number of sample point')
@@ -315,13 +315,16 @@ def main():
         batch_time = AverageMeter()
         data_time = AverageMeter()
         losses = AverageMeter()
+        task_loss = AverageMeter()
+        samp_loss = AverageMeter()
+
         score_train = AverageMeter()
         score_train_1 = AverageMeter()
         metric_train = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
 
         # Train model for args.nepochs
         task_model.eval()
-        sampler.train()
+        task_model.sampler.train()
 
         list_n_pooints =[]
         # compute timing
@@ -356,12 +359,12 @@ def main():
             # Sampler loss
             # loss_number_sampler = task_model.sampler.module.sample_number_loss(bin_pred_map)
             #loss_number_sampler = task_model.sampler.module.sample_number_loss_2(sample_out)
-            loss_number_sampler = torch.abs(pred_map.sum()-10000)/10000
+            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
             loss_softarg = task_model.sampler.module.get_softargmax_loss()
             # total loss
   
-            total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + args.gama * loss_softarg
+            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
 
 
             if i % 100 ==0 :
@@ -370,7 +373,12 @@ def main():
                                                                                                         str(loss_softarg.item()),
                                                                                                         str(total_loss.item()) ))
                 print("Number of sample lat iter: {0}".format(list_n_pooints[-1]))
+            
             losses.update(total_loss.item(), input.size(0))
+            task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
+            samp_loss.update(loss_number_sampler.item(), input.size(0))
+
+
             metric_train.calculate(prediction[:, 0:1].detach(), gt.detach())
             score_train.update(metric_train.get_metric(args.metric), metric_train.num)
             score_train_1.update(metric_train.get_metric(args.metric_1), metric_train.num)
@@ -393,10 +401,14 @@ def main():
             if (i + 1) % args.print_freq == 0:
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                      'Toatal Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                      'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
+                      'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
                       'Metric {score.val:.4f} ({score.avg:.4f})'.format(
                        epoch+1, i+1, len(train_loader), batch_time=batch_time,
                        loss=losses,
+                       task_loss = task_loss, 
+                       samp_loss = samp_loss,
                        score=score_train))
 
         avg_point_per_image = np.mean(list_n_pooints)
@@ -457,11 +469,15 @@ def main():
 def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch=0):
     # batch_time = AverageMeter()
     losses = AverageMeter()
+    task_loss = AverageMeter()
+    samp_loss = AverageMeter() 
     metric = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
+   
     score = AverageMeter()
     score_1 = AverageMeter()
     # Evaluate model
     model.eval()
+    model.sampler.eval()
     list_n_pooints = []
     # Only forward pass, hence no grads needed
     with torch.no_grad():
@@ -470,10 +486,12 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             if not args.no_cuda:
                 input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
           
+            sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1))  
 
-            sample_out, bin_pred_map = model.sampler(gt)  
+            # sample_out, bin_pred_map, = model.sampler(gt)  
             
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
+            
             list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
 
             prediction, lidar_out, precise, guide = model(sample_input, epoch)
@@ -485,12 +503,14 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
             # Sampler loss
-            loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
+            # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
+            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
+
             loss_softarg = model.sampler.module.get_softargmax_loss()
 
             # total loss
          
-            total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + args.gama * loss_softarg
+            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
             if i % 100 ==0 :
                 print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
@@ -498,17 +518,22 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                                                                                                         str(total_loss.item()) ))
             
             
-            losses.update(loss.item(), input.size(0))
+            losses.update(total_loss.item(), input.size(0))
+            task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
+            samp_loss.update(loss_number_sampler.item(), input.size(0))
 
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
 
             if (i + 1) % args.print_freq == 0:
+    
                 print('Test: [{0}/{1}]\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                      'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
+                      'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
+                      'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
                       'Metric {score.val:.4f} ({score.avg:.4f})'.format(
-                       i+1, len(loader), loss=losses,
+                       i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
                        score=score))
         
         avg_point_per_image = np.mean(list_n_pooints)

@@ -151,13 +151,13 @@ def main():
             # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
             # model = model.module
 
-    save_id = '{}_{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}'.\
+    save_id = '{}_{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}_SR_{}'.\
               format(args.mod, args.optimizer, args.loss_criterion,
                      args.learning_rate,
                      args.input_type, 
                      args.batch_size,
                      args.pretrained, args.wlid, args.wrgb, args.wguide, args.wpred, 
-                     args.lr_decay_iters, args.num_samples, args.multi)
+                     args.lr_decay_iters, args.num_samples, args.multi,args.sample_ratio)
 
 
     # INIT optimizer/scheduler/loss criterion

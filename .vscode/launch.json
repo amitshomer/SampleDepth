@@ -47,7 +47,7 @@
         "justMyCode": true,
         "args": [
             "--batch_size",
-            "1",
+            "8",
             "--nworkers",
             "4",
             "--multi",
