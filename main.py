@@ -73,6 +73,7 @@ parser.add_argument('--sample_ratio', default=2, type=int, help='Sample ration f
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Saved/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
 parser.add_argument('--erfnet_weight', default='/home/amitshomer/Documents/SampleDepth//task_checkpoint/erfnet_pretrained.pth', help='path to desired dataset')
+parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -206,7 +207,9 @@ def main():
     # Only evaluate
     elif args.evaluate:
         print("Evaluate only")
-        best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
+        # best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
+        best_file_lst = []
+        best_file_lst.append(args.eval_path)
         if len(best_file_lst) != 0:
             best_file_name = best_file_lst[0]
             print(best_file_name)
@@ -215,6 +218,7 @@ def main():
                 print("=> loading checkpoint '{}'".format(best_file_name))
                 checkpoint = torch.load(best_file_name)
                 model.load_state_dict(checkpoint['state_dict'])
+                model.eval()
             else:
                 print("=> no checkpoint found at '{}'".format(best_file_name))
         else:
@@ -441,7 +445,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
         if args.evaluate:
             print("===> Average RMSE score on validation set is {:.4f}".format(score.avg))
             print("===> Average MAE score on validation set is {:.4f}".format(score_1.avg))
-            print("===> Average point per image {:.4f}".format(str(avg_point_per_image)))
+            print("===> Average point per image {:.4f}".format((avg_point_per_image)))
 
     return score.avg, score_1.avg, losses.avg, avg_point_per_image
 

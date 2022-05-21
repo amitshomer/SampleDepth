@@ -36,9 +36,9 @@ parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs fo
 parser.add_argument('--thres', type=int, default=0, help='epoch for pretraining')
 parser.add_argument('--start_epoch', type=int, default=0, help='Start epoch number for training')
 parser.add_argument('--mod', type=str, default='mod', choices=Models.allowed_models(), help='Model for use')
-parser.add_argument('--batch_size', type=int, default=10, help='batch size')
+parser.add_argument('--batch_size', type=int, default=8, help='batch size')
 parser.add_argument('--val_batch_size', default=None, help='batch size selection validation set')
-parser.add_argument('--learning_rate', metavar='lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--learning_rate', metavar='lr', type=float, default=0.0001, help='learning rate')
 parser.add_argument('--no_cuda', action='store_true', help='no gpu usage')
 
 parser.add_argument('--evaluate', action='store_true', help='only evaluate')
@@ -83,6 +83,7 @@ parser.add_argument('--sample_ratio', default=1, type=int, help='Sample ration f
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
 parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
+parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -226,7 +227,7 @@ def main():
             args.start_epoch = checkpoint['epoch']
             lowest_loss = checkpoint['loss']
             best_epoch = checkpoint['best epoch']
-            model.load_state_dict(checkpoint['state_dict'])
+            task_model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
@@ -239,7 +240,9 @@ def main():
     # Only evaluate
     if args.evaluate:
         print("Evaluate only")
-        best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
+        # best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
+        best_file_lst = []
+        best_file_lst.append(args.eval_path)
         if len(best_file_lst) != 0:
             best_file_name = best_file_lst[0]
             print(best_file_name)
@@ -247,12 +250,12 @@ def main():
                 sys.stdout = Logger(os.path.join(args.save_path, 'Evaluate.txt'))
                 print("=> loading checkpoint '{}'".format(best_file_name))
                 checkpoint = torch.load(best_file_name)
-                model.load_state_dict(checkpoint['state_dict'])
+                task_model.load_state_dict(checkpoint['state_dict'])
             else:
                 print("=> no checkpoint found at '{}'".format(best_file_name))
         else:
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
-        validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+        validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
         return
 
     # Start training from clean slate
