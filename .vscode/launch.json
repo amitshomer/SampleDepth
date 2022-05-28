@@ -21,13 +21,16 @@
             "justMyCode": true,
             "args": [
                 "--batch_size",
-                "4",
+                "1",
                 "--nworkers",
                 "1",
                 "--multi",
                 "True",
                 "--sample_ratio",
-                "2"
+                "8",
+                "--evaluate",
+                "--eval_path",
+                "/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR8_BU/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_8/model_best_epoch_15.pth.tar"    
             ]
         },
         {
@@ -47,13 +50,35 @@
         "justMyCode": true,
         "args": [
             "--batch_size",
-            "8",
+            "1",
             "--nworkers",
-            "4",
+            "1",
             "--multi",
-            "True"
+            "True",
+            "--sampler_input",
+            "gt"
         ]
-        
-    }
+        },
+        {
+            "name": "main_sampler_eval",
+            "type": "python",
+            "request": "launch",
+            "program": "main_sampler.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--batch_size",
+                "1",
+                "--nworkers",
+                "1",
+                "--multi",
+                "True",
+                "--evaluate",
+                "--eval_path",
+                "/home/amitshomer/Documents/SampleDepth/Sampler_save/SR8/mod_adam_mse_0.0001_rgb_batch8_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples2400_multiTrue/checkpoint_model_epoch_29.pth.tar",
+                "--n_sample",
+                "2400"
+            ]
+            }
     ]
 }

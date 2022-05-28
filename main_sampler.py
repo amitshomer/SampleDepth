@@ -57,10 +57,10 @@ parser.add_argument('--pretrained', type=str2bool, nargs='?', const=True, defaul
 parser.add_argument('--load_external_mod', type=str2bool, nargs='?', const=True, default=False, help='path to external mod')
 #Sampler
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
-
-parser.add_argument('--alpha', type=float, default=0.5, help='Number of sample point')
+parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
 parser.add_argument('--beta', type=int, default=1, help='Number of sample point')
 parser.add_argument('--gama', type=int, default= 0, help='Number of sample point')
+parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
 
 
 
@@ -304,6 +304,9 @@ def main():
     #                 .format(lowest_loss_load))
 
     # Start training
+    print(args.alpha)
+    print(args.beta)
+
     for epoch in range(args.start_epoch, args.nepochs):
         print("\n => Start EPOCH {}".format(epoch + 1))
         print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
@@ -343,7 +346,13 @@ def main():
                 input, gt = input.cuda(), gt.cuda()
             
             # Sample augmantion from sparse input (lidar)
-            sample_out, bin_pred_map, pred_map = task_model.sampler(input[:,0,:,:].unsqueeze(dim =1))  
+            if args.sampler_input == "sparse_input":
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
+            elif args.sampler_input == "gt":
+                sample_out, bin_pred_map, pred_map = task_model.sampler(gt)
+            else:
+                raise ValueError('input to Sampler is not valid')
+
             
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
@@ -366,11 +375,10 @@ def main():
 
             loss_softarg = task_model.sampler.module.get_softargmax_loss()
             # total loss
-  
-            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
+            total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
 
 
-            if i % 100 ==0 :
+            if i % 500 ==0 :
                 print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
                                                                                                         str(loss_softarg.item()),
@@ -422,7 +430,7 @@ def main():
 
         # Evaulate model on validation set
         print("=> Start validation set")
-        score_valid, score_valid_1, losses_valid, avg_point_per_image_val = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+        score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
         print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
         print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
@@ -430,11 +438,13 @@ def main():
         # Evaluate model on selected validation set
         if args.subset is None:
             print("=> Start selection validation set")
-            score_selection, score_selection_1, losses_selection, avg_point_per_image_sel = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+            score_selection, score_selection_1, losses_selection, avg_point_per_image_sel, avg_sample_loss_val = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
             total_score = score_selection
             print("===> Average RMSE score on selection set is {:.4f}".format(score_selection))
             print("===> Average MAE score on selection set is {:.4f}".format(score_selection_1))
             print("===> Average point per on selection images {:.4f}".format((avg_point_per_image_sel)))
+            print("===> Average sample loss on selection images {:.4f}".format((avg_sample_loss_val)))
+
 
         else:
             total_score = score_valid
@@ -489,7 +499,12 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             if not args.no_cuda:
                 input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
           
-            sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1))  
+            if args.sampler_input == "sparse_input":
+                sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
+            elif args.sampler_input == "gt":
+                sample_out, bin_pred_map, pred_map = model.sampler(gt)
+            else:
+                raise ValueError('input to Sampler is not valid')
 
             # sample_out, bin_pred_map, = model.sampler(gt)  
             
@@ -514,11 +529,11 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             # total loss
          
             total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
-            if i % 100 ==0 :
-                print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
-                                                                                                        str(loss_number_sampler.item()),
-                                                                                                        str(loss_softarg.item()),
-                                                                                                        str(total_loss.item()) ))
+            # if i % 100 ==0 :
+            #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
+            #                                                                                             str(loss_number_sampler.item()),
+            #                                                                                             str(loss_softarg.item()),
+            #                                                                                             str(total_loss.item()) ))
             
             
             losses.update(total_loss.item(), input.size(0))
@@ -540,12 +555,14 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                        score=score))
         
         avg_point_per_image = np.mean(list_n_pooints)
+
         if args.evaluate:
             print("===> Average RMSE score on validation set is {:.4f}".format(score.avg))
             print("===> Average MAE score on validation set is {:.4f}".format(score_1.avg))
             print("===> Average point per image {:.4f}".format((avg_point_per_image)))
+            print("===> Average sample loss on selection images {:.4f}".format((samp_loss.avg)))
 
-    return score.avg, score_1.avg, losses.avg, avg_point_per_image
+    return score.avg, score_1.avg, losses.avg, avg_point_per_image, samp_loss.avg
 
 
 def save_checkpoint(state, to_copy, epoch):

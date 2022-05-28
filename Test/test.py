@@ -37,7 +37,7 @@ parser.add_argument('--data_path', type=str, required=True, help='path to desire
 
 # Cudnn
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True, default=True, help="cudnn optimization active")
-parser.add_argument('--multi', type=str2bool, nargs='?', const=True, default=False, help="use multiple gpus")
+parser.add_argument('--multi', type=str2bool, nargs='?', const=True, default=True, help="use multiple gpus")
 parser.add_argument('--normal', type=str2bool, nargs='?', const=True, default=False, help="Normalize input")
 parser.add_argument('--max_depth', type=float, default=85.0, help="maximum depth of input")
 parser.add_argument('--sparse_val', type=float, default=0.0, help="encode sparse values with 0")
