@@ -18,8 +18,10 @@ import Models
 import Datasets
 import warnings
 import random
+import matplotlib.pyplot as plt
 from datetime import datetime
 from Models.SampleDepth import SampleDepth
+from Models.Global_mask import Global_mask
 from Loss.loss import define_loss, allowed_losses, MSE_loss
 from Loss.benchmark_metrics import Metrics, allowed_metrics
 from Datasets.dataloader import get_loader
@@ -28,6 +30,12 @@ from Utils.utils import str2bool, define_optim, define_scheduler, \
                         Logger, AverageMeter, first_run, mkdir_if_missing, \
                         define_init_weights, init_distributed_mode, sample_uniform
 
+cmap = plt.cm.jet
+
+def depth_colorize(depth):
+    depth = (depth - np.min(depth)) / (np.max(depth) - np.min(depth))
+    depth = 255 * cmap(depth)[:, :, :3]  # H, W, C
+    return depth.astype('uint8')
 
 # Training setttings
 parser = argparse.ArgumentParser(description='KITTI Depth Completion Task')
@@ -36,7 +44,7 @@ parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs fo
 parser.add_argument('--thres', type=int, default=0, help='epoch for pretraining')
 parser.add_argument('--start_epoch', type=int, default=0, help='Start epoch number for training')
 parser.add_argument('--mod', type=str, default='mod', choices=Models.allowed_models(), help='Model for use')
-parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+parser.add_argument('--batch_size', type=int, default=10, help='batch size')
 parser.add_argument('--val_batch_size', default=None, help='batch size selection validation set')
 parser.add_argument('--learning_rate', metavar='lr', type=float, default=0.0001, help='learning rate')
 parser.add_argument('--no_cuda', action='store_true', help='no gpu usage')
@@ -78,12 +86,20 @@ parser.add_argument("--no_aug", type=str2bool, nargs='?', const=True, default=Fa
 parser.add_argument('--sample_ratio', default=1, type=int, help='Sample ration from the Lidar inputs')
 
 
+parser.add_argument("--fine_tune", type=str2bool, nargs='?', default=False, help="finetuning sampler and task togheter")
+parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='SampleDepth/global_mask')
+
+
+
+
 # Paths settings
 #TODO - remove hard pathes
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
 parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
+parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
+
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -162,14 +178,28 @@ def main():
             # model.cuda()
             # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
             # model = model.module
-
-    checkpoint = torch.load(args.task_weight)
-    task_model.load_state_dict(checkpoint['state_dict'])
-    task_model.requires_grad_(False)
-    task_model.eval().cuda()
+    if not args.fine_tune:
+        checkpoint = torch.load(args.task_weight)
+        task_model.load_state_dict(checkpoint['state_dict'])
+        task_model.requires_grad_(False)
+        task_model.eval().cuda()
+    else:
+        task_model.requires_grad_(True)
+        task_model.train().cuda()
 
     ## Define the sampler
-    sampler = SampleDepth(n_sample = args.n_sample)
+    if args.sampler_type == 'SampleDepth':
+        sampler = SampleDepth(n_sample = args.n_sample)
+        print("Sampler: SampleDepth")
+    elif args.sampler_type == 'global_mask':
+        sampler = Global_mask(batch_size = args.batch_size)
+        print("Sampler: Global_mask")
+
+    else:
+        raise Exception("Sampler choosing is not corret")
+
+
+    
     if not args.multi:
         sampler = sampler.cuda()
     else:
@@ -181,6 +211,12 @@ def main():
     # Attach sampler to task_model
 
     task_model.sampler = sampler
+
+    if args.fine_tune:
+        print("## fine tuning task with sampler ###")
+        print("Load wieght for task with sampler")
+        checkpoint = torch.load(args.finetune_path)
+        task_model.load_state_dict(checkpoint['state_dict'])
     
     # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
     learnable_params = [x for x in task_model.parameters() if x.requires_grad]
@@ -306,6 +342,7 @@ def main():
     # Start training
     print(args.alpha)
     print(args.beta)
+    print("Sampler input: {0}".format(args.sampler_input))
 
     for epoch in range(args.start_epoch, args.nepochs):
         print("\n => Start EPOCH {}".format(epoch + 1))
@@ -329,7 +366,10 @@ def main():
         metric_train = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
 
         # Train model for args.nepochs
-        task_model.eval()
+        if args.fine_tune:
+            task_model.train()
+        else:
+            task_model.eval()
         task_model.sampler.train()
 
         list_n_pooints =[]
@@ -373,12 +413,14 @@ def main():
             #loss_number_sampler = task_model.sampler.module.sample_number_loss_2(sample_out)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg = task_model.sampler.module.get_softargmax_loss()
+            loss_softarg =torch.zeros(1).cuda()
+            # loss_softarg = task_model.sampler.module.get_softargmax_loss()
+
             # total loss
             total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
 
 
-            if i % 500 ==0 :
+            if i % 200 ==0 :
                 print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
                                                                                                         str(loss_softarg.item()),
@@ -492,13 +534,16 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     model.eval()
     model.sampler.eval()
     list_n_pooints = []
+    time_list = []
+    
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
         for i, (input, gt) in tqdm(enumerate(loader)):
             if not args.no_cuda:
                 input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
-          
+            
+            start_samp = time.time()
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
             elif args.sampler_input == "gt":
@@ -506,8 +551,25 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             else:
                 raise ValueError('input to Sampler is not valid')
 
-            # sample_out, bin_pred_map, = model.sampler(gt)  
+            ### try
+            # new = torch.zeros(sample_out.shape).cuda()
+            # new[sample_out!= 0]= 1
+            # grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
+            # flat_grade_piexel = grade_pixel.view(-1)
+            # hight_indexes = torch.topk(flat_grade_piexel, 2400)[1]
+            # sample_out_new=torch.zeros(sample_out.view(-1).shape)
+            # sample_out_new[hight_indexes]= 1
+            # sample_out_new = sample_out_new.view(256,1216)
+            # sample_out = sample_out* sample_out_new.cuda()
+            # print(torch.count_nonzero(sample_out))
+            # #####
             
+            
+            
+            end_samp = time.time()
+            # sample_out, bin_pred_map, = model.sampler(gt)  
+            time_list.append(end_samp - start_samp)
+
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
             list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
@@ -525,7 +587,8 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
             loss_softarg = model.sampler.module.get_softargmax_loss()
-
+            
+    
             # total loss
          
             total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
@@ -555,7 +618,8 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                        score=score))
         
         avg_point_per_image = np.mean(list_n_pooints)
-
+        print("avergae time per image:")
+        print(np.mean(time_list))
         if args.evaluate:
             print("===> Average RMSE score on validation set is {:.4f}".format(score.avg))
             print("===> Average MAE score on validation set is {:.4f}".format(score_1.avg))
