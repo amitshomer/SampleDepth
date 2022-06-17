@@ -22,13 +22,18 @@ import torch.nn.init as init
 import torch.distributed as dist
 import random
 
-def sample_uniform(depth, ratio):
+def sample_uniform(depth, ratio, n_sample, sample_factor_type, batch_size):
     torch.seed()
 
     mask_keep = depth > 0
     depth_sampled = torch.zeros(depth.shape).cuda()
     # prob = float(self.num_samples) / n_keep
-    prob = 1/ratio
+    
+    if sample_factor_type =='ratio':
+        prob = 1/ratio
+    elif sample_factor_type == 'n_points':
+        prob = (batch_size*n_sample)/torch.count_nonzero(depth)
+
     mask_keep =  torch.bitwise_and(mask_keep, torch.rand(depth.shape).cuda() < prob)
     depth_sampled[mask_keep] = depth[mask_keep]
     return depth_sampled

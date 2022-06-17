@@ -21,16 +21,17 @@
             "justMyCode": true,
             "args": [
                 "--batch_size",
-                "1",
+                "4",
                 "--nworkers",
                 "1",
                 "--multi",
                 "True",
                 "--sample_ratio",
                 "8",
-                "--evaluate",
-                "--eval_path",
-                "/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR8_BU/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_8/model_best_epoch_15.pth.tar"    
+                "--sampler_input",
+                "gt",
+                "--sample_factor_type",
+                "n_points"    
             ]
         },
         {
@@ -50,7 +51,7 @@
         "justMyCode": true,
         "args": [
             "--batch_size",
-            "1",
+            "14",
             "--nworkers",
             "1",
             "--multi",
@@ -58,7 +59,9 @@
             "--sampler_input",
             "gt",
             "--sampler_type",
-            "global_mask"
+            "global_mask",
+            "--n_sample",
+            "19000",
         ]
         },
         {
@@ -77,9 +80,9 @@
                 "True",
                 "--evaluate",
                 "--eval_path",
-                "/home/amitshomer/Documents/SampleDepth/Sampler_save/SR8_a02_b10_input_gt_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples2400_multiTrue/model_best_epoch_5.pth.tar",           
+                "/home/amitshomer/Documents/SampleDepth/Sampler_save/SR1_a02_b10_input_gt_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples19000_multiTrue/model_best_epoch_3.pth.tar",
                 "--n_sample",
-                "2400",
+                "19000",
                 "--sampler_input",
                 "gt"
             ]

@@ -192,7 +192,7 @@ def main():
         sampler = SampleDepth(n_sample = args.n_sample)
         print("Sampler: SampleDepth")
     elif args.sampler_type == 'global_mask':
-        sampler = Global_mask(batch_size = args.batch_size)
+        sampler = Global_mask(batch_size = args.batch_size, multi = args.multi)
         print("Sampler: Global_mask")
 
     else:
@@ -340,8 +340,8 @@ def main():
     #                 .format(lowest_loss_load))
 
     # Start training
-    print(args.alpha)
-    print(args.beta)
+    print("Alpha factor: {0}".format(str(args.alpha)))
+    print("Beta factor: {0}".format(str(args.beta)))
     print("Sampler input: {0}".format(args.sampler_input))
 
     for epoch in range(args.start_epoch, args.nepochs):
@@ -412,15 +412,21 @@ def main():
             # loss_number_sampler = task_model.sampler.module.sample_number_loss(bin_pred_map)
             #loss_number_sampler = task_model.sampler.module.sample_number_loss_2(sample_out)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-
+            
             loss_softarg =torch.zeros(1).cuda()
             # loss_softarg = task_model.sampler.module.get_softargmax_loss()
 
             # total loss
             total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+            
+            # if args.sampler_type == 'global_mask':
+            #     # loss_global_mask = task_model.sampler.module.global_mask_loss()
+            #     # total_loss = total_loss + loss_global_mask
+            #     if i % 200 ==0 :
 
+            #         print("Loss global mask: {0} ".format(str(loss_global_mask.item())))
 
-            if i % 200 ==0 :
+            if i % 500 ==0 :
                 print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
                                                                                                         str(loss_softarg.item()),
@@ -586,12 +592,17 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg = model.sampler.module.get_softargmax_loss()
+            loss_softarg =torch.zeros(1).cuda()
+            # loss_softarg = model.sampler.module.get_softargmax_loss()
             
     
             # total loss
          
             total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
+            
+            # if args.sampler_type == 'global_mask':
+            #     loss_global_mask = model.sampler.module.global_mask_loss()
+            #     total_loss = total_loss + 0.2* loss_global_mask
             # if i % 100 ==0 :
             #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
             #                                                                                             str(loss_number_sampler.item()),

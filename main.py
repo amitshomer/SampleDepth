@@ -65,8 +65,10 @@ parser.add_argument("--rescale", type=str2bool, nargs='?', const=True,
                     default=False, help="Rescale values of sparse depth input randomly")
 parser.add_argument("--normal", type=str2bool, nargs='?', const=True, default=False, help="normalize depth/rgb input")
 parser.add_argument("--no_aug", type=str2bool, nargs='?', const=True, default=False, help="rotate image")
+parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
+parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 parser.add_argument('--sample_ratio', default=2, type=int, help='Sample ration from the Lidar inputs')
-
+parser.add_argument('--sample_factor_type', type=str, default='ratio', help='ratio/n_points/None')
 
 # Paths settings
 #TODO - remove hard pathes
@@ -235,7 +237,12 @@ def main():
     print(40*"="+"\nArgs:{}\n".format(args)+40*"=")
     print("Init model: '{}'".format(args.mod))
     print("Number of parameters in model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in model.parameters())/1e6))
-    print("Sample ration of: {0}".format(str(args.sample_ratio)))
+    print("Sample_factor_type: {0}".format(args.sample_factor_type))
+    if args.sample_factor_type == 'ratio':
+        print("Sample ration of: {0}".format(str(args.sample_ratio)))
+    if args.sample_factor_type == 'n_points':
+        print("Sample n_points : {0}".format(str(args.n_sample)))
+
     # Load pretrained state for cityscapes in GLOBAL net
     if args.pretrained and not args.resume:
         if not args.load_external_mod:
@@ -303,9 +310,17 @@ def main():
             if not args.no_cuda:
                 input, gt = input.cuda(), gt.cuda()
             
+            if args.sampler_input == "sparse_input":
+                continue
+            elif args.sampler_input == "gt":
+                input[:,0,:,:] = gt.squeeze()
+            else:
+                raise ValueError('input to Sampler is not valid')
+            
+
             # Sample augmantion from sparse input (lidar)
-            if args.sample_ratio != 1:
-                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio)
+            if args.sample_factor_type != 'None':
+                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
             
             list_n_pooints.append(torch.count_nonzero(input[:,0,:,:]).item()/args.batch_size)
 
@@ -416,9 +431,16 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             if not args.no_cuda:
                 input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
             
+            if args.sampler_input == "sparse_input":
+                continue
+            elif args.sampler_input == "gt":
+                input[:,0,:,:] = gt.squeeze()
+            else:
+                raise ValueError('input to Sampler is not valid')
+
             # Sample augmantion from sparse input (lidar)
-            if args.sample_ratio != 1:
-                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio)
+            if args.sample_factor_type != 'None':
+                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
 
             list_n_pooints.append(torch.count_nonzero(input[:,0,:,:]).item()/args.batch_size)
             prediction, lidar_out, precise, guide = model(input, epoch)
