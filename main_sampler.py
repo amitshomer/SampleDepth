@@ -66,8 +66,8 @@ parser.add_argument('--load_external_mod', type=str2bool, nargs='?', const=True,
 #Sampler
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
-parser.add_argument('--beta', type=int, default=1, help='Number of sample point')
-parser.add_argument('--gama', type=int, default= 0, help='Number of sample point')
+parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
+parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
 parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
 
 
@@ -96,7 +96,9 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 #TODO - remove hard pathes
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
+#parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
+
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
 
@@ -109,7 +111,7 @@ parser.add_argument('--lr_decay', action='store_true', help='decay learning rate
 parser.add_argument('--niter', type=int, default=50, help='# of iter at starting learning rate')
 parser.add_argument('--niter_decay', type=int, default=400, help='# of iter to linearly decay learning rate to zero')
 parser.add_argument('--lr_policy', type=str, default='plateau', help='{}learning rate policy: lambda|step|plateau')
-parser.add_argument('--lr_decay_iters', type=int, default=10, help='multiply by a gamma every lr_decay_iters iterations')
+parser.add_argument('--lr_decay_iters', type=int, default=2, help='multiply by a gamma every lr_decay_iters iterations')
 parser.add_argument('--clip_grad_norm', type=int, default=0, help='performs gradient clipping')
 parser.add_argument('--gamma', type=float, default=0.5, help='factor to decay learning rate every lr_decay_iters with')
 
@@ -360,6 +362,8 @@ def main():
         losses = AverageMeter()
         task_loss = AverageMeter()
         samp_loss = AverageMeter()
+        choice_loss = AverageMeter()
+
 
         score_train = AverageMeter()
         score_train_1 = AverageMeter()
@@ -396,7 +400,10 @@ def main():
             
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
-            list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
+            if args.sampler_type == 'global_mask':
+                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
+            else:
+                list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
 
             prediction, lidar_out, precise, guide = task_model(sample_input, epoch)
 
@@ -409,26 +416,41 @@ def main():
             loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
             # Sampler loss
-            # loss_number_sampler = task_model.sampler.module.sample_number_loss(bin_pred_map)
-            #loss_number_sampler = task_model.sampler.module.sample_number_loss_2(sample_out)
+ 
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-            
+
             loss_softarg =torch.zeros(1).cuda()
             # loss_softarg = task_model.sampler.module.get_softargmax_loss()
 
             # total loss
-            total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
-            
-            # if args.sampler_type == 'global_mask':
-            #     # loss_global_mask = task_model.sampler.module.global_mask_loss()
-            #     # total_loss = total_loss + loss_global_mask
-            #     if i % 200 ==0 :
+            # total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+            if args.sampler_type == 'global_mask':
+                # loss_choice = torch.abs((torch.sum(sample_out[:,0,:,:]>0.0001)/args.batch_size)-args.n_sample)/args.n_sample
+                loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample
+                #loss_choice = torch.abs((sample_out[:,0,:,:].sum()/args.batch_size)-args.n_sample)/args.n_sample
+                
+                loss_choice_scalar = loss_choice.item()
+                choice_loss.update(loss_choice_scalar, input.size(0))
 
+                total_loss = 1* loss_task +  1* loss_number_sampler + 0 * loss_softarg +1* loss_choice #TODO - change hard coded
+
+
+            else: # SampleDepth
+                loss_choice_scalar = None
+                total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+
+            
+            #     loss_global_mask = task_model.sampler.module.global_mask_loss()
+            #     total_loss = total_loss + loss_global_mask/200                
+            #     # total_loss = total_loss 
+
+            #     if i % 200 ==0 :
             #         print("Loss global mask: {0} ".format(str(loss_global_mask.item())))
 
-            if i % 500 ==0 :
-                print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
+            if i % 100 ==0 :
+                print("Loss task: {0} , Loss number sample: {1}, Loss choice map: {2}, Loss softargmax: {3}, Total loss: {4}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
+                                                                                                        str(loss_choice_scalar),
                                                                                                         str(loss_softarg.item()),
                                                                                                         str(total_loss.item()) ))
                 print("Number of sample lat iter: {0}".format(list_n_pooints[-1]))
@@ -459,16 +481,18 @@ def main():
             # Print info
             if (i + 1) % args.print_freq == 0:
                 print('Epoch: [{0}][{1}/{2}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Toatal Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
-                      'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
-                      'Metric {score.val:.4f} ({score.avg:.4f})'.format(
-                       epoch+1, i+1, len(train_loader), batch_time=batch_time,
-                       loss=losses,
-                       task_loss = task_loss, 
-                       samp_loss = samp_loss,
-                       score=score_train))
+                    'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                    'Toatal Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                    'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
+                    'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
+                    'Metric {score.val:.4f} ({score.avg:.4f})'.format(
+                    epoch+1, i+1, len(train_loader), batch_time=batch_time,
+                    loss=losses,
+                    task_loss = task_loss, 
+                    samp_loss = samp_loss,
+                    score=score_train))
+                if args.sampler_type == 'global_mask':
+                    print('Choice Loss {choice_loss.val:.4f} ({choice_loss.avg:.4f})'.format(choice_loss = choice_loss))
 
         avg_point_per_image = np.mean(list_n_pooints)
 
@@ -523,6 +547,13 @@ def main():
             'state_dict': task_model.state_dict(),
             'loss': lowest_loss,
             'optimizer': optimizer.state_dict()}, to_save, epoch)
+
+        if args.sampler_type == 'global_mask':
+            print("Save .npz pred map")
+            numpy_to_save = pred_map.detach().cpu().numpy()
+            save_pred_path = os.path.join(args.save_path, 'pred_map_epoch_{0}.npz'.format(epoch))
+            np.savez(save_pred_path, name1 = numpy_to_save)
+
     if not args.no_tb:
         writer.close()
 
@@ -578,7 +609,12 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
-            list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
+            # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
+          
+            if args.sampler_type == 'global_mask':
+                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
+            else:
+                list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
 
             prediction, lidar_out, precise, guide = model(sample_input, epoch)
 

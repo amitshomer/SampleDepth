@@ -46,6 +46,8 @@ def define_optim(optim, params, lr, weight_decay):
         optimizer = torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
     elif optim == 'rmsprop':
         optimizer = torch.optim.RMSprop(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
+    elif optim == 'AdamW':
+        optimizer=  torch.optim.AdamW(params, lr=lr, betas=(0.9, 0.999), eps=1e-08)
     else:
         raise KeyError("The requested optimizer: {} is not implemented".format(optim))
     return optimizer

@@ -242,6 +242,7 @@ def main():
         print("Sample ration of: {0}".format(str(args.sample_ratio)))
     if args.sample_factor_type == 'n_points':
         print("Sample n_points : {0}".format(str(args.n_sample)))
+    print("Sampler input: {0}".format(args.sampler_input))
 
     # Load pretrained state for cityscapes in GLOBAL net
     if args.pretrained and not args.resume:
