@@ -28,7 +28,7 @@ from Datasets.dataloader import get_loader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from Utils.utils import str2bool, define_optim, define_scheduler, \
                         Logger, AverageMeter, first_run, mkdir_if_missing, \
-                        define_init_weights, init_distributed_mode, sample_uniform
+                        define_init_weights, init_distributed_mode, sample_random
 
 cmap = plt.cm.jet
 
@@ -39,7 +39,7 @@ def depth_colorize(depth):
 
 # Training setttings
 parser = argparse.ArgumentParser(description='KITTI Depth Completion Task')
-parser.add_argument('--dataset', type=str, default='kitti', choices=Datasets.allowed_datasets(), help='dataset to work with')
+parser.add_argument('--dataset', type=str, default='kitti', help='dataset to work with')
 parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs for training')
 parser.add_argument('--thres', type=int, default=0, help='epoch for pretraining')
 parser.add_argument('--start_epoch', type=int, default=0, help='Start epoch number for training')
@@ -63,6 +63,9 @@ parser.add_argument('--no_tb', type=str2bool, nargs='?', const=True,
 parser.add_argument('--test_mode', action='store_true', help='Do not use resume')
 parser.add_argument('--pretrained', type=str2bool, nargs='?', const=True, default=True, help='use pretrained model')
 parser.add_argument('--load_external_mod', type=str2bool, nargs='?', const=True, default=False, help='path to external mod')
+parser.add_argument('--dataset_name', type=str, default='kitti', help='kitti/SHIFT')
+
+
 #Sampler
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
@@ -96,8 +99,11 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 #TODO - remove hard pathes
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
+parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
+
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
+# parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -243,7 +249,12 @@ def main():
     criterion_guide = define_loss(args.loss_criterion)
 
     # INIT dataset
-    dataset = Datasets.define_dataset(args.dataset, args.data_path, args.input_type, args.side_selection)
+    if args.dataset =='kitti':
+        data_path = args.data_path
+    else:
+        data_path = args.data_path_SHIFT
+    
+    dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
     dataset.prepare_dataset()
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset)
 
@@ -293,7 +304,12 @@ def main():
                 print("=> no checkpoint found at '{}'".format(best_file_name))
         else:
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
-        validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+       
+        if  args.dataset == 'kitti' :
+            validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+        else: 
+            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+        # validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
         return
 
     # Start training from clean slate
@@ -304,6 +320,7 @@ def main():
 
     # INIT MODEL
     print(40*"="+"\nArgs:{}\n".format(args)+40*"=")
+    print("Dataset : {}".format(args.dataset))
     print("Init model: '{}'".format(args.mod))
     print("Number of parameters in task  model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in task_model.parameters())/1e6))
     print("Number of parameters in Sampler  model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in sampler.parameters())/1e6))
@@ -447,7 +464,7 @@ def main():
             #     if i % 200 ==0 :
             #         print("Loss global mask: {0} ".format(str(loss_global_mask.item())))
 
-            if i % 100 ==0 :
+            if i % 500 ==0 :
                 print("Loss task: {0} , Loss number sample: {1}, Loss choice map: {2}, Loss softargmax: {3}, Total loss: {4}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
                                                                                                         str(loss_choice_scalar),
@@ -508,7 +525,7 @@ def main():
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
-        if args.subset is None:
+        if args.subset is None and args.dataset == 'kitti':
             print("=> Start selection validation set")
             score_selection, score_selection_1, losses_selection, avg_point_per_image_sel, avg_sample_loss_val = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
             total_score = score_selection

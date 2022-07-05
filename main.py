@@ -25,11 +25,13 @@ from Datasets.dataloader import get_loader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from Utils.utils import str2bool, define_optim, define_scheduler, \
                         Logger, AverageMeter, first_run, mkdir_if_missing, \
-                        define_init_weights, init_distributed_mode, sample_uniform
+                        define_init_weights, init_distributed_mode, sample_random
 
 # Training setttings
 parser = argparse.ArgumentParser(description='KITTI Depth Completion Task')
-parser.add_argument('--dataset', type=str, default='kitti', choices=Datasets.allowed_datasets(), help='dataset to work with')
+# parser.add_argument('--dataset', type=str, default='kitti', choices=Datasets.allowed_datasets(), help='dataset to work with')
+parser.add_argument('--dataset', type=str, default='kitti', help='dataset to work with: kitti/SHIFT')
+
 parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs for training')
 parser.add_argument('--thres', type=int, default=0, help='epoch for pretraining')
 parser.add_argument('--start_epoch', type=int, default=0, help='Start epoch number for training')
@@ -53,8 +55,10 @@ parser.add_argument('--no_tb', type=str2bool, nargs='?', const=True,
 parser.add_argument('--test_mode', action='store_true', help='Do not use resume')
 parser.add_argument('--pretrained', type=str2bool, nargs='?', const=True, default=True, help='use pretrained model')
 parser.add_argument('--load_external_mod', type=str2bool, nargs='?', const=True, default=False, help='path to external mod')
+#Data settng Global
+parser.add_argument('--dataset_name', type=str, default='kitti', help='kitti/SHIFT')
 
-# Data augmentation settings
+# Data augmentation settings Kitti
 parser.add_argument('--crop_w', type=int, default=1216, help='width of image after cropping')
 parser.add_argument('--crop_h', type=int, default=256, help='height of image after cropping')
 parser.add_argument('--max_depth', type=float, default=85.0, help='maximum depth of LIDAR input')
@@ -69,11 +73,14 @@ parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 parser.add_argument('--sample_ratio', default=2, type=int, help='Sample ration from the Lidar inputs')
 parser.add_argument('--sample_factor_type', type=str, default='ratio', help='ratio/n_points/None')
+parser.add_argument('--sample_method', type=str, default='random', help='random/uniform')
 
 # Paths settings
 #TODO - remove hard pathes
 parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Saved/', help='save path')
-parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
+parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to Kitti dataset')
+parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
+
 parser.add_argument('--erfnet_weight', default='/home/amitshomer/Documents/SampleDepth//task_checkpoint/erfnet_pretrained.pth', help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 
@@ -174,7 +181,12 @@ def main():
     criterion_guide = define_loss(args.loss_criterion)
 
     # INIT dataset
-    dataset = Datasets.define_dataset(args.dataset, args.data_path, args.input_type, args.side_selection)
+    if args.dataset =='kitti':
+        data_path = args.data_path
+    else:
+        data_path = args.data_path_SHIFT
+    
+    dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
     dataset.prepare_dataset()
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset)
 
@@ -225,7 +237,10 @@ def main():
                 print("=> no checkpoint found at '{}'".format(best_file_name))
         else:
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
-        validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+        if  args.dataset == 'kitti' :
+            validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+        else: 
+            validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
         return
 
     # Start training from clean slate
@@ -235,14 +250,19 @@ def main():
 
     # INIT MODEL
     print(40*"="+"\nArgs:{}\n".format(args)+40*"=")
+    print("Dataset : {}".format(args.dataset))
     print("Init model: '{}'".format(args.mod))
     print("Number of parameters in model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in model.parameters())/1e6))
     print("Sample_factor_type: {0}".format(args.sample_factor_type))
     if args.sample_factor_type == 'ratio':
         print("Sample ration of: {0}".format(str(args.sample_ratio)))
+
     if args.sample_factor_type == 'n_points':
         print("Sample n_points : {0}".format(str(args.n_sample)))
+        print("Sampler method: {0}".format(args.sample_method))
+
     print("Sampler input: {0}".format(args.sampler_input))
+
 
     # Load pretrained state for cityscapes in GLOBAL net
     if args.pretrained and not args.resume:
@@ -312,7 +332,7 @@ def main():
                 input, gt = input.cuda(), gt.cuda()
             
             if args.sampler_input == "sparse_input":
-                continue
+                input = input
             elif args.sampler_input == "gt":
                 input[:,0,:,:] = gt.squeeze()
             else:
@@ -321,8 +341,16 @@ def main():
 
             # Sample augmantion from sparse input (lidar)
             if args.sample_factor_type != 'None':
-                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
-            
+                if args.sample_method =='random':
+                    input[:,0,:,:] = sample_random(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
+                else:# half uniform
+                    ratio_per_batch = torch.round((torch.count_nonzero(input[:,0,:,:])/(args.batch_size*args.n_sample))).to(torch.int)
+                    mask = torch.zeros_like(input[:,0,:,:])
+                    mask[:,::ratio_per_batch,:] = 1
+                    new_input = input[:,0,:,:] * mask
+                    new_input = sample_random(new_input , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
+                    input[:,0,:,:] = new_input
+
             list_n_pooints.append(torch.count_nonzero(input[:,0,:,:]).item()/args.batch_size)
 
             prediction, lidar_out, precise, guide = model(input, epoch)
@@ -375,7 +403,7 @@ def main():
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
-        if args.subset is None:
+        if args.subset is None and args.dataset == 'kitti':
             print("=> Start selection validation set")
             score_selection, score_selection_1, losses_selection, avg_point_per_image_sel = validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, epoch)
             total_score = score_selection
@@ -433,7 +461,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
             
             if args.sampler_input == "sparse_input":
-                continue
+                input = input
             elif args.sampler_input == "gt":
                 input[:,0,:,:] = gt.squeeze()
             else:
@@ -441,7 +469,15 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             # Sample augmantion from sparse input (lidar)
             if args.sample_factor_type != 'None':
-                input[:,0,:,:] = sample_uniform(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
+                if args.sample_method =='random':
+                    input[:,0,:,:] = sample_random(input[:,0,:,:] , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
+                else:# half uniform
+                    ratio_per_batch = torch.round((torch.count_nonzero(input[:,0,:,:])/(args.batch_size*args.n_sample))).to(torch.int)
+                    mask = torch.zeros_like(input[:,0,:,:])
+                    mask[:,::ratio_per_batch,:] = 1
+                    new_input = input[:,0,:,:] * mask
+                    new_input = sample_random(new_input , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
+                    input[:,0,:,:] = new_input
 
             list_n_pooints.append(torch.count_nonzero(input[:,0,:,:]).item()/args.batch_size)
             prediction, lidar_out, precise, guide = model(input, epoch)

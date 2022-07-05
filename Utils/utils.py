@@ -22,7 +22,7 @@ import torch.nn.init as init
 import torch.distributed as dist
 import random
 
-def sample_uniform(depth, ratio, n_sample, sample_factor_type, batch_size):
+def sample_random(depth, ratio, n_sample, sample_factor_type, batch_size):
     torch.seed()
 
     mask_keep = depth > 0
@@ -101,16 +101,26 @@ def first_run(save_path):
     return ''
 
 
-def depth_read(img, sparse_val):
+def depth_read(img, sparse_val, dataset ='kitti',max_depth = 80):
     # loads depth map D from png file
     # and returns it as a numpy array,
     # for details see readme.txt
-    depth_png = np.array(img, dtype=int)
-    depth_png = np.expand_dims(depth_png, axis=2)
-    # make sure we have a proper 16bit depth map here.. not 8bit!
-    assert(np.max(depth_png) > 255)
-    depth = depth_png.astype(np.float) / 256.
-    depth[depth_png == 0] = sparse_val
+    if dataset =='kitti':
+        depth_png = np.array(img, dtype=int)
+        depth_png = np.expand_dims(depth_png, axis=2)
+        # make sure we have a proper 16bit depth map here.. not 8bit!
+        assert(np.max(depth_png) > 255)
+        depth = depth_png.astype(np.float) / 256.
+        depth[depth_png == 0] = sparse_val
+    else:
+        depth_png = np.array(img, dtype=np.float32)    
+        DEPTH_C = np.array(1000.0 / (256 * 256 * 256 - 1), np.float32)
+        depth = (256 * 256 * depth_png[:, :, 2] +  256 * depth_png[:, :, 1] + depth_png[:, :, 0]) * DEPTH_C  # in meters  
+        depth[depth>max_depth] = max_depth
+        im = Image.fromarray(depth)
+        im = im.resize((640, 400), Image.NEAREST) # TODO- change hard coded
+        depth = np.array(im, dtype=np.float32)    
+
     return depth
 
 
