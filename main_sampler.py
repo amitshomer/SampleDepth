@@ -53,7 +53,7 @@ parser.add_argument('--evaluate', action='store_true', help='only evaluate')
 parser.add_argument('--resume', type=str, default='', help='resume latest saved run number')
 parser.add_argument("--resume_bool", type=str2bool, nargs='?', const=True, default=False, help="True to start train from resume number")
 parser.add_argument('--nworkers', type=int, default=8, help='num of threads')
-parser.add_argument('--nworkers_val', type=int, default=0, help='num of threads')
+parser.add_argument('--nworkers_val', type=int, default=8, help='num of threads')
 parser.add_argument('--no_dropout', action='store_true', help='no dropout in network')
 parser.add_argument('--subset', type=int, default=None, help='Take subset of train set')
 parser.add_argument('--input_type', type=str, default='rgb', choices=['depth','rgb'], help='use rgb for rgbdepth')
@@ -306,10 +306,11 @@ def main():
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
        
         if  args.dataset == 'kitti' :
-            validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+            validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
         else: 
-            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
-        # validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            #validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args) # TODO replace
+
         return
 
     # Start training from clean slate
@@ -593,93 +594,104 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt) in tqdm(enumerate(loader)):
-            if not args.no_cuda:
-                input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
-            
-            start_samp = time.time()
-            if args.sampler_input == "sparse_input":
-                sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
-            elif args.sampler_input == "gt":
-                sample_out, bin_pred_map, pred_map = model.sampler(gt)
-            else:
-                raise ValueError('input to Sampler is not valid')
+        for i, (input, gt, name) in tqdm(enumerate(loader)):
+            # to do- delete
+            base_path = '/datadrive/SHIFT/sample/train/'
+            folder = name[0][:name[0].rfind('/')]
+            file_name= name[0][name[0].rfind('/'):]
 
-            ### try
-            # new = torch.zeros(sample_out.shape).cuda()
-            # new[sample_out!= 0]= 1
-            # grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
-            # flat_grade_piexel = grade_pixel.view(-1)
-            # hight_indexes = torch.topk(flat_grade_piexel, 2400)[1]
-            # sample_out_new=torch.zeros(sample_out.view(-1).shape)
-            # sample_out_new[hight_indexes]= 1
-            # sample_out_new = sample_out_new.view(256,1216)
-            # sample_out = sample_out* sample_out_new.cuda()
-            # print(torch.count_nonzero(sample_out))
-            # #####
-            
-            
-            
-            end_samp = time.time()
-            # sample_out, bin_pred_map, = model.sampler(gt)  
-            time_list.append(end_samp - start_samp)
+            if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
+                if not args.no_cuda:
+                    input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
+                
+                start_samp = time.time()
+                if args.sampler_input == "sparse_input":
+                    sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
+                elif args.sampler_input == "gt":
+                    sample_out, bin_pred_map, pred_map = model.sampler(gt)
+                else:
+                    raise ValueError('input to Sampler is not valid')
 
-            sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
-            
-            # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
-          
-            if args.sampler_type == 'global_mask':
-                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
-            else:
-                list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
+                ### try
+                # new = torch.zeros(sample_out.shape).cuda()
+                # new[sample_out!= 0]= 1
+                # grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
+                # flat_grade_piexel = grade_pixel.view(-1)
+                # hight_indexes = torch.topk(flat_grade_piexel, 2400)[1]
+                # sample_out_new=torch.zeros(sample_out.view(-1).shape)
+                # sample_out_new[hight_indexes]= 1
+                # sample_out_new = sample_out_new.view(256,1216)
+                # sample_out = sample_out* sample_out_new.cuda()
+                # print(torch.count_nonzero(sample_out))
+                # #####
+                
+                
+                
+                end_samp = time.time()
+                # sample_out, bin_pred_map, = model.sampler(gt)  
+                time_list.append(end_samp - start_samp)
 
-            prediction, lidar_out, precise, guide = model(sample_input, epoch)
+                sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
+                
+                # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
+            
+                if args.sampler_type == 'global_mask':
+                    list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
+                else:
+                    list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
 
-            loss = criterion_local(prediction, gt, epoch)
-            loss_lidar = criterion_lidar(lidar_out, gt, epoch)
-            loss_rgb = criterion_rgb(precise, gt, epoch)
-            loss_guide = criterion_guide(guide, gt, epoch)
-            loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
-            
-            # Sampler loss
-            # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
-            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
+                prediction, lidar_out, precise, guide = model(sample_input, epoch)
 
-            loss_softarg =torch.zeros(1).cuda()
-            # loss_softarg = model.sampler.module.get_softargmax_loss()
-            
-    
-            # total loss
-         
-            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
-            
-            # if args.sampler_type == 'global_mask':
-            #     loss_global_mask = model.sampler.module.global_mask_loss()
-            #     total_loss = total_loss + 0.2* loss_global_mask
-            # if i % 100 ==0 :
-            #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
-            #                                                                                             str(loss_number_sampler.item()),
-            #                                                                                             str(loss_softarg.item()),
-            #                                                                                             str(total_loss.item()) ))
-            
-            
-            losses.update(total_loss.item(), input.size(0))
-            task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
-            samp_loss.update(loss_number_sampler.item(), input.size(0))
+                # save locally npz - TODO delete after 
+                if not os.path.exists(base_path+folder):
+                    os.makedirs(base_path+folder)
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())  
 
-            metric.calculate(prediction[:, 0:1], gt)
-            score.update(metric.get_metric(args.metric), metric.num)
-            score_1.update(metric.get_metric(args.metric_1), metric.num)
+                loss = criterion_local(prediction, gt, epoch)
+                loss_lidar = criterion_lidar(lidar_out, gt, epoch)
+                loss_rgb = criterion_rgb(precise, gt, epoch)
+                loss_guide = criterion_guide(guide, gt, epoch)
+                loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
+                
+                # Sampler loss
+                # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
+                loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            if (i + 1) % args.print_freq == 0:
-    
-                print('Test: [{0}/{1}]\t'
-                      'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
-                      'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
-                      'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
-                      'Metric {score.val:.4f} ({score.avg:.4f})'.format(
-                       i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
-                       score=score))
+                loss_softarg =torch.zeros(1).cuda()
+                # loss_softarg = model.sampler.module.get_softargmax_loss()
+                
+        
+                # total loss
+            
+                total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
+                
+                # if args.sampler_type == 'global_mask':
+                #     loss_global_mask = model.sampler.module.global_mask_loss()
+                #     total_loss = total_loss + 0.2* loss_global_mask
+                # if i % 100 ==0 :
+                #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
+                #                                                                                             str(loss_number_sampler.item()),
+                #                                                                                             str(loss_softarg.item()),
+                #                                                                                             str(total_loss.item()) ))
+                
+                
+                losses.update(total_loss.item(), input.size(0))
+                task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
+                samp_loss.update(loss_number_sampler.item(), input.size(0))
+
+                metric.calculate(prediction[:, 0:1], gt)
+                score.update(metric.get_metric(args.metric), metric.num)
+                score_1.update(metric.get_metric(args.metric_1), metric.num)
+
+                if (i + 1) % args.print_freq == 0:
+        
+                    print('Test: [{0}/{1}]\t'
+                        'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
+                        'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
+                        'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
+                        'Metric {score.val:.4f} ({score.avg:.4f})'.format(
+                        i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
+                        score=score))
         
         avg_point_per_image = np.mean(list_n_pooints)
         print("avergae time per image:")

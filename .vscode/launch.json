@@ -159,13 +159,11 @@
                 "True",
                 "--evaluate",
                 "--eval_path",
-                "/home/amitshomer/Documents/SampleDepth/Sampler_save/global_mask_V2/mod_AdamW_mse_0.05_rgb_batch1_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience2_num_samples19000_multiTrue/checkpoint_model_epoch_6.pth.tar",
+                "/home/amitshomer/Documents/SampleDepth/Sampler_save/SR2/mod_adam_mse_0.0001_rgb_batch8_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples9600_multiTrue/model_best_epoch_16.pth.tar",
                 "--n_sample",
-                "19000",
+                "9600",
                 "--sampler_input",
-                "gt",
-                "--sampler_type",
-                "global_mask"
+                "sparse_input",
             ]
             },
             {
@@ -202,9 +200,9 @@
                     "justMyCode": true,
                     "args": [
                         "--batch_size",
-                        "10",
+                        "1",
                         "--nworkers",
-                        "8",
+                        "1",
                         "--dataset",
                         "SHIFT",
                         "--multi",
@@ -226,8 +224,79 @@
                         "--alpha",
                         "0.1",
                         "--beta",
-                        "100"
+                        "100",
+                        "--evaluate",
+                        "--eval_path",
+                        "/home/amitshomer/Documents/SampleDepth/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar"
                     ]
-                    }
+                    },
+                    {
+                        "name": "main_sampler_intime",
+                        "type": "python",
+                        "request": "launch",
+                        "program": "main_sampler_intime.py",
+                        "console": "integratedTerminal",
+                        "justMyCode": true,
+                        "args": [
+                            "--batch_size",
+                            "10",
+                            "--nworkers",
+                            "8",
+                            "--dataset",
+                            "SHIFT",
+                            "--multi",
+                            "True",
+                            "--sampler_type",
+                            "SampleDepth",
+                            "--n_sample",
+                            "19000",           
+                            "--lr_policy",
+                            "step",
+                            "--lr_decay_iters",
+                            "10",
+                            "--print_freq",
+                            "20",
+                            "--learning_rate",
+                            "0.0001",
+                            "--alpha",
+                            "0.1",
+                            "--beta",
+                            "10",
+                        ]
+                        },
+                        {
+                            "name": "main_sampler_intime_eval",
+                            "type": "python",
+                            "request": "launch",
+                            "program": "main_sampler_intime.py",
+                            "console": "integratedTerminal",
+                            "justMyCode": true,
+                            "args": [
+                                "--batch_size",
+                                "1",
+                                "--nworkers",
+                                "4",
+                                "--dataset",
+                                "SHIFT",
+                                "--multi",
+                                "True",
+                                "--sampler_type",
+                                "SampleDepth",
+                                "--n_sample",
+                                "19000",           
+                                "--print_freq",
+                                "200",
+                                "--learning_rate",
+                                "0.0001",
+                                "--alpha",
+                                "0.1",
+                                "--beta",
+                                "10",
+                                "--evaluate",
+                                "--eval_path",
+                                "/home/amitshomer/Documents/SampleDepth/Sampler_intime_save/SHIFT_19K_1_timesetp/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience5_num_samples19000_multiTrue/model_best_epoch_17.pth.tar"
+
+                            ]
+                            }
     ]
 }
