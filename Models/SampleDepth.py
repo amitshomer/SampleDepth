@@ -1,6 +1,5 @@
 from torch import nn
 import torch
-from torchsummary import summary
 import numpy as np
 
 # def softargmax2d(input, beta=100):

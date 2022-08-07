@@ -97,13 +97,13 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 
 # Paths settings
 #TODO - remove hard pathes
-parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/', help='save path')
+parser.add_argument('--save_path', default='/data/ashomer/project/SampleDepth/checkpoints/general_save', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
+parser.add_argument('--data_path_SHIFT', default='/data/ashomer/project/SHIFT_dataset/discrete/images', help='path to SHIFT dataset')
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -308,8 +308,8 @@ def main():
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
         else: 
-            #validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args) # TODO replace
+            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            # validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args) # TODO replace
 
         return
 
@@ -596,7 +596,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
         # end = time.time()
         for i, (input, gt, name) in tqdm(enumerate(loader)):
             # to do- delete
-            base_path = '/datadrive/SHIFT/sample/train/'
+            base_path = '/data/ashomer/project/SHIFT_dataset/sample/val/'
             folder = name[0][:name[0].rfind('/')]
             file_name= name[0][name[0].rfind('/'):]
 

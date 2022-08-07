@@ -1,6 +1,5 @@
 from torch import nn
 import torch
-from torchsummary import summary
 import numpy as np
 from .SampleDepth import Softargmax2d
 

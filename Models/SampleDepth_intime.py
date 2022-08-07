@@ -186,9 +186,9 @@ class DownBlock(nn.Module):
 
         # conv layers
         self.conv1 = get_conv_layer(self.in_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
-                                    bias=True, dim=self.dim)
+                                    bias=True, dim=self.dim) 
         self.conv2 = get_conv_layer(self.out_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
-                                    bias=True, dim=self.dim)
+            bias=True, dim=self.dim)
 
         # pooling layer
         if self.pooling:
@@ -261,7 +261,7 @@ class UpBlock(nn.Module):
                                     bias=True, dim=self.dim)
         self.conv2 = get_conv_layer(self.out_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
                                     bias=True, dim=self.dim)
-
+  
         # activation layers
         self.act0 = get_activation(self.activation)
         self.act1 = get_activation(self.activation)
@@ -310,7 +310,7 @@ class SampleDepth_intime(nn.Module):
     def __init__(self,
                  in_channels: int = 1,
                  out_channels: int = 2,
-                 n_blocks: int = 4,
+                 n_blocks: int = 5,
                  start_filters: int = 32,
                  activation: str = 'relu',
                  normalization: str = 'batch',

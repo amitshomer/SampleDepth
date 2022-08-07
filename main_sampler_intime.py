@@ -21,6 +21,8 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime
 from Models.SampleDepth_intime import SampleDepth_intime
+from Models.SimVP import SimVP
+
 from Models.Global_mask import Global_mask
 from Loss.loss import define_loss, allowed_losses, MSE_loss
 from Loss.benchmark_metrics import Metrics, allowed_metrics
@@ -98,15 +100,15 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 
 # Paths settings
 #TODO - remove hard pathes
-parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Sampler_intime_save/', help='save path')
+parser.add_argument('--save_path', default='/data/ashomer/project/SampleDepth/checkpoints/general_save/', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
-parser.add_argument('--past_input_path', default='/datadrive/SHIFT/sample/', help='path to SHIFT dataset')
+parser.add_argument('--data_path_SHIFT', default='/data/ashomer/project/SHIFT_dataset/discrete/images/', help='path to SHIFT dataset')
+parser.add_argument('--past_input_path', default='/data/ashomer/project/SHIFT_dataset/sample/', help='path to SHIFT dataset')
 
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar', help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -138,6 +140,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -152,7 +155,7 @@ parser.add_argument('--world_size', default=1, type=int,
 parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
 parser.add_argument('--local_rank', dest="local_rank", default=0, type=int)
 
-
+cuda_send = "cuda:{0}".format(str(parser.parse_args().gpu_device[0]))
 def main():
     global args
     args = parser.parse_args()
@@ -183,9 +186,9 @@ def main():
         # Load on gpu before passing params to optimizer
     if not args.no_cuda:
         if not args.multi:
-            task_model = task_model.cuda()
+            task_model = task_model.to(cuda_send)
         else:
-            task_model = torch.nn.DataParallel(task_model).cuda()
+            task_model = torch.nn.DataParallel(task_model, device_ids = args.gpu_device).to(cuda_send)
             # model.cuda()
             # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
             # model = model.module
@@ -199,15 +202,19 @@ def main():
         task_model.load_state_dict(dic_to_load)
 
         task_model.requires_grad_(False)
-        task_model.eval().cuda()
+        task_model.eval().to(cuda_send)
     else:
         task_model.requires_grad_(True)
-        task_model.train().cuda()
+        task_model.train().to(cuda_send)
 
     ## Define the sampler
     if args.sampler_type == 'SampleDepth':
-        sampler = SampleDepth_intime(n_sample = args.n_sample)
+        sampler = SampleDepth_intime(n_sample = args.n_sample, in_channels = args.past_inputs)
         print("Sampler: SampleDepth")
+
+        # sampler = SimVP(shape_in = [args.past_inputs,1,400,640])
+        print("SimVP trying")
+
     elif args.sampler_type == 'global_mask':
         sampler = Global_mask(batch_size = args.batch_size, multi = args.multi)
         print("Sampler: Global_mask")
@@ -218,9 +225,9 @@ def main():
 
     
     if not args.multi:
-        sampler = sampler.cuda()
+        sampler = sampler.to(cuda_send)
     else:
-        sampler =torch.nn.DataParallel(sampler).cuda()
+        sampler =torch.nn.DataParallel(sampler, device_ids = args.gpu_device).to(cuda_send)
 
     sampler.requires_grad_(True)
     sampler.train()
@@ -276,6 +283,7 @@ def main():
     args.resume = first_run(args.save_path)
     if args.resume and args.resume_bool and not args.test_mode and not args.evaluate:
         path = os.path.join(args.save_path, 'checkpoint_model_epoch_{}.pth.tar'.format(int(args.resume)))
+        
         if os.path.isfile(path):
             log_file_name = 'log_train_start_{}.txt'.format(args.resume)
             # stdout
@@ -289,6 +297,12 @@ def main():
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
+            for g in optimizer.param_groups: #TODO- delete
+                g['lr'] = 0.00005
+            args.lr_decay_iters = 2
+            scheduler = define_scheduler(optimizer, args)
+
+
         else:
             log_file_name = 'log_train_start_0.txt'
             # stdout
@@ -371,6 +385,7 @@ def main():
     # Start training
     print("Alpha factor: {0}".format(str(args.alpha)))
     print("Beta factor: {0}".format(str(args.beta)))
+    print("LR : {}".format(optimizer.param_groups[0]['lr']))
 
     for epoch in range(args.start_epoch, args.nepochs):
         print("\n => Start EPOCH {}".format(epoch + 1))
@@ -407,15 +422,15 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt, past_depth, _) in tqdm(enumerate(train_loader)):
+        for i, (input, gt, past_depth) in tqdm(enumerate(train_loader)):
             # Time dataloader
             data_time.update(time.time() - end)
 
             # Put inputs on gpu if possible
             if not args.no_cuda:
-                input, gt, past_depth = input.cuda(), gt.cuda(), past_depth.cuda()
+                input, gt, past_depth = input.to(cuda_send), gt.to(cuda_send), past_depth.to(cuda_send)
 
-            sample_out, bin_pred_map, pred_map = task_model.sampler(past_input=past_depth, gt=gt)
+            sample_out, bin_pred_map, pred_map = task_model.sampler(past_depth, gt)
 
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
@@ -436,7 +451,7 @@ def main():
  
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg =torch.zeros(1).cuda()
+            loss_softarg =torch.zeros(1).to(cuda_send)
             # loss_softarg = task_model.sampler.module.get_softargmax_loss()
 
             # total loss
@@ -593,13 +608,13 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt, past_depth, _) in tqdm(enumerate(loader)):
+        for i, (input, gt, past_depth) in tqdm(enumerate(loader)):
             if not args.no_cuda:
-                input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
-                past_depth = past_depth.cuda(non_blocking=True)
+                input, gt = input.to(cuda_send, non_blocking=True), gt.to(cuda_send, non_blocking=True)
+                past_depth = past_depth.to(cuda_send, non_blocking=True)
                 
             start_samp = time.time()
-            sample_out, bin_pred_map, pred_map = model.sampler(past_input=past_depth, gt=gt)
+            sample_out, bin_pred_map, pred_map = model.sampler(past_depth, gt)
             ### try
             # new = torch.zeros(sample_out.shape).cuda()
             # new[sample_out!= 0]= 1
@@ -641,7 +656,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg =torch.zeros(1).cuda()
+            loss_softarg =torch.zeros(1).to(cuda_send)
             # loss_softarg = model.sampler.module.get_softargmax_loss()
             
     
@@ -666,6 +681,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
+
 
             if (i + 1) % args.print_freq == 0:
     

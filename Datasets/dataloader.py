@@ -207,25 +207,36 @@ class Dataset_loader(Dataset):
             full_file_path = self.dataset_type[self.gt_name][idx]
             val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
             file_name = full_file_path[full_file_path.rfind('/'):]
-            file_index = str(int(file_name[1: file_name.find('_')]) - 10).rjust(8,'0')
+            
+            #Current predicated depth loader
+            file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
             sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
             past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
             if os.path.exists(past_data_path):
                 with np.load(past_data_path, allow_pickle=True) as data:
-                    past_depth = data['a'].squeeze()
-                    past_depth = self.totensor(past_depth).float()
-            
-                ## just for debug 
-                past_data_gt_path =   full_file_path[:full_file_path.rfind("/")]+'/'+ file_index+'_depth_front.png'
-                with open(past_data_gt_path, 'rb') as f:
-                    past_gt = (Image.open(f).convert('RGB'))
-                    past_gt = depth_read(past_gt, self.sparse_val, dataset = 'SHIFT',max_depth =self.max_depth)
-                    self.totensor(past_gt).float()
+                    current_depth_pred = data['a'].squeeze()
+                    current_depth_pred = self.totensor(current_depth_pred).float()
 
-            else: 
-                raise Exception("No past data .npz file in {0}".format(past_data_path))
+            # Past depth loader
+            for i in range(1, self.past_inputs+1):
+                file_index = str(int(file_name[1: file_name.find('_')]) - 10 *i).rjust(8,'0')
+                sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
+                past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+                if os.path.exists(past_data_path):
+                    with np.load(past_data_path, allow_pickle=True) as data:
+                        past_depth = data['a'].squeeze()
+                        past_depth = self.totensor(past_depth).float()
+                        if i == 1:
+                            past_depths= past_depth
+                        else:
+                            past_depths = torch.cat((past_depths,past_depth),0)
+                        
+
+
+                else: 
+                    raise Exception("No past data .npz file in {0}".format(past_data_path))
             
-            return input, gt, past_depth, past_gt
+            return input, gt, past_depths
         
         # TODO - delete
         name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
