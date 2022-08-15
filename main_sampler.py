@@ -596,7 +596,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
         # end = time.time()
         for i, (input, gt, name) in tqdm(enumerate(loader)):
             # to do- delete
-            base_path = '/data/ashomer/project/SHIFT_dataset/sample/val/'
+            base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/val/'
             folder = name[0][:name[0].rfind('/')]
             file_name= name[0][name[0].rfind('/'):]
 
@@ -645,7 +645,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 # save locally npz - TODO delete after 
                 if not os.path.exists(base_path+folder):
                     os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())  
+                    # mask= sample_out[0,0,:,:] > 0.001
+                    # indices = mask.nonzero()
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=pred_map.type(torch.int).detach().cpu().numpy())  
 
                 loss = criterion_local(prediction, gt, epoch)
                 loss_lidar = criterion_lidar(lidar_out, gt, epoch)

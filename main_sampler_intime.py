@@ -12,6 +12,7 @@ import shutil
 import glob
 from tqdm import tqdm
 import torch
+from  ChamferDistancePytorch.chamfer2D.dist_chamfer_2D import chamfer_2DDist
 import torch.nn as nn
 import torch.optim
 import Models
@@ -140,7 +141,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -213,7 +214,7 @@ def main():
         print("Sampler: SampleDepth")
 
         # sampler = SimVP(shape_in = [args.past_inputs,1,400,640])
-        print("SimVP trying")
+        # print("SimVP trying")
 
     elif args.sampler_type == 'global_mask':
         sampler = Global_mask(batch_size = args.batch_size, multi = args.multi)
@@ -263,6 +264,8 @@ def main():
     criterion_lidar = define_loss(args.loss_criterion)
     criterion_rgb = define_loss(args.loss_criterion)
     criterion_guide = define_loss(args.loss_criterion)
+    chamLoss = chamfer_2DDist()
+    l1_loss = loss = nn.L1Loss()
 
     # INIT dataset
     if args.dataset =='kitti':
@@ -331,7 +334,8 @@ def main():
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
         else: 
-            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide,l1_loss, args)
+            
         return
 
     # Start training from clean slate
@@ -404,6 +408,7 @@ def main():
         task_loss = AverageMeter()
         samp_loss = AverageMeter()
         choice_loss = AverageMeter()
+        chamfer_loss = AverageMeter()
 
 
         score_train = AverageMeter()
@@ -422,7 +427,7 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt, past_depth) in tqdm(enumerate(train_loader)):
+        for i, (input, gt, past_depth, indicies_current_predmap) in tqdm(enumerate(train_loader)):
             # Time dataloader
             data_time.update(time.time() - end)
 
@@ -448,19 +453,26 @@ def main():
             loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
             # Sampler loss
- 
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-
             loss_softarg =torch.zeros(1).to(cuda_send)
-            # loss_softarg = task_model.sampler.module.get_softargmax_loss()
 
-            # total loss
-            # total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+            #Chamfer be like loss
+            chmfer_loss = l1_loss(indicies_current_predmap.to(cuda_send), pred_map)
+
+            # count = torch.zeros((1),requires_grad=True).to(cuda_send)
+            # for batch_i in range(indicies_current_predmap.shape[0]):
+            #     # mask_indc= sample_out[batch_i,0,:,:] > 0.001
+            #     indices_pred_map = mask_indc.nonzero().unsqueeze(0).type(torch.FloatTensor).to(cuda_send)
+            #     incdices_gt_map = indicies_current_predmap[batch_i,0,:int(indicies_current_predmap[0,:,-1,0].item())+1,:].unsqueeze(0).to(cuda_send)
+            #     dist1, dist2, _, _= chamLoss(indices_pred_map, incdices_gt_map)
+            #     chamfer_batch_lost = torch.mean(dist1) + torch.mean(dist2)
+            #     count += chamfer_batch_lost
+            # chmfer_loss = dist1
+
             if args.sampler_type == 'global_mask':
                 # loss_choice = torch.abs((torch.sum(sample_out[:,0,:,:]>0.0001)/args.batch_size)-args.n_sample)/args.n_sample
                 loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample
                 #loss_choice = torch.abs((sample_out[:,0,:,:].sum()/args.batch_size)-args.n_sample)/args.n_sample
-                
                 loss_choice_scalar = loss_choice.item()
                 choice_loss.update(loss_choice_scalar, input.size(0))
 
@@ -469,7 +481,8 @@ def main():
 
             else: # SampleDepth
                 loss_choice_scalar = None
-                total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+                total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg + chmfer_loss
+                # total_loss =  chmfer_loss
 
             
             #     loss_global_mask = task_model.sampler.module.global_mask_loss()
@@ -490,6 +503,7 @@ def main():
             losses.update(total_loss.item(), input.size(0))
             task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
             samp_loss.update(loss_number_sampler.item(), input.size(0))
+            chamfer_loss.update(chmfer_loss.item(), input.size(0))
 
 
             metric_train.calculate(prediction[:, 0:1].detach(), gt.detach())
@@ -517,15 +531,17 @@ def main():
                     'Toatal Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                     'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
                     'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
+                    'Chmfer Loss {chamfer_loss.val:.4f} ({chamfer_loss.avg:.4f})\t'
                     'Metric {score.val:.4f} ({score.avg:.4f})'.format(
                     epoch+1, i+1, len(train_loader), batch_time=batch_time,
                     loss=losses,
                     task_loss = task_loss, 
                     samp_loss = samp_loss,
+                    chamfer_loss = chamfer_loss,
                     score=score_train))
                 if args.sampler_type == 'global_mask':
                     print('Choice Loss {choice_loss.val:.4f} ({choice_loss.avg:.4f})'.format(choice_loss = choice_loss))
-
+            
         avg_point_per_image = np.mean(list_n_pooints)
 
         print("===> Average RMSE score on training set is {:.4f}".format(score_train.avg))
@@ -534,7 +550,7 @@ def main():
 
         # Evaulate model on validation set
         print("=> Start validation set")
-        score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+        score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, l1_loss, args, epoch)
         print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
         print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
@@ -542,7 +558,7 @@ def main():
         # Evaluate model on selected validation set
         if args.subset is None and args.dataset == 'kitti':
             print("=> Start selection validation set")
-            score_selection, score_selection_1, losses_selection, avg_point_per_image_sel, avg_sample_loss_val = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+            score_selection, score_selection_1, losses_selection, avg_point_per_image_sel, avg_sample_loss_val = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, l1_loss, args, epoch)
             total_score = score_selection
             print("===> Average RMSE score on selection set is {:.4f}".format(score_selection))
             print("===> Average MAE score on selection set is {:.4f}".format(score_selection_1))
@@ -590,7 +606,7 @@ def main():
         writer.close()
 
 
-def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch=0):
+def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, l1_loss, args, epoch=0):
     # batch_time = AverageMeter()
     losses = AverageMeter()
     task_loss = AverageMeter()
@@ -599,6 +615,8 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
    
     score = AverageMeter()
     score_1 = AverageMeter()
+    chamfer_loss = AverageMeter()
+
     # Evaluate model
     model.eval()
     model.sampler.eval()
@@ -608,7 +626,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt, past_depth) in tqdm(enumerate(loader)):
+        for i, (input, gt, past_depth, indicies_current_predmap) in tqdm(enumerate(loader)):
             if not args.no_cuda:
                 input, gt = input.to(cuda_send, non_blocking=True), gt.to(cuda_send, non_blocking=True)
                 past_depth = past_depth.to(cuda_send, non_blocking=True)
@@ -656,6 +674,10 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
+            # semi chamfer loss
+            chmfer_loss = l1_loss(indicies_current_predmap.to(cuda_send), pred_map)
+ 
+
             loss_softarg =torch.zeros(1).to(cuda_send)
             # loss_softarg = model.sampler.module.get_softargmax_loss()
             
@@ -681,6 +703,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
+            chamfer_loss.update(chmfer_loss.item(), input.size(0))
 
 
             if (i + 1) % args.print_freq == 0:
@@ -689,8 +712,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                     'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
                     'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
                     'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
+                    'Chmfer Loss {chamfer_loss.val:.4f} ({chamfer_loss.avg:.4f})\t'
                     'Metric {score.val:.4f} ({score.avg:.4f})'.format(
-                    i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
+                    i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss, chamfer_loss = chamfer_loss,
                     score=score))
     
         avg_point_per_image = np.mean(list_n_pooints)

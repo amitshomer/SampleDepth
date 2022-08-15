@@ -211,11 +211,17 @@ class Dataset_loader(Dataset):
             #Current predicated depth loader
             file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
             sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
-            past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+            indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/'
+            past_data_path = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+            
             if os.path.exists(past_data_path):
                 with np.load(past_data_path, allow_pickle=True) as data:
-                    current_depth_pred = data['a'].squeeze()
-                    current_depth_pred = self.totensor(current_depth_pred).float()
+                    indicies_current_predmap = data['a'].squeeze()
+                    indicies_current_predmap = self.totensor(indicies_current_predmap).float()
+                    # size_tens= indicies_current_predmap.shape[1] - 1
+                    # pad = torch.zeros(1,100000-size_tens,2)
+                    # last_element =  torch.tensor([[[size_tens, size_tens]]])
+                    # big_indices = torch.cat((indicies_current_predmap, pad, last_element), dim=1)
 
             # Past depth loader
             for i in range(1, self.past_inputs+1):
@@ -236,7 +242,7 @@ class Dataset_loader(Dataset):
                 else: 
                     raise Exception("No past data .npz file in {0}".format(past_data_path))
             
-            return input, gt, past_depths
+            return input, gt, past_depths, indicies_current_predmap
         
         # TODO - delete
         name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
