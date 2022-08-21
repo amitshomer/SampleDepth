@@ -71,7 +71,8 @@ parser.add_argument('--n_sample', type=int, default=19000, help='Number of sampl
 parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
 parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
 parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
-parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
+parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/predict_from_past')
+parser.add_argument('--past_inputs', type=int, default=4, help='Number of past depths inputs which freated depth predictaion')
 
 
 
@@ -97,13 +98,13 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 
 # Paths settings
 #TODO - remove hard pathes
-parser.add_argument('--save_path', default='/data/ashomer/project/SampleDepth/checkpoints/general_save', help='save path')
+parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/checkpoints/general_save', help='save path')
 parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='/data/ashomer/project/SHIFT_dataset/discrete/images', help='path to SHIFT dataset')
+parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images', help='path to SHIFT dataset')
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -192,6 +193,8 @@ def main():
         task_model.requires_grad_(False)
         task_model.eval().cuda()
     else:
+        # task_model.requires_grad_(False)
+        # task_model.eval().cuda()
         task_model.requires_grad_(True)
         task_model.train().cuda()
 
@@ -255,8 +258,8 @@ def main():
         data_path = args.data_path_SHIFT
     
     dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
-    dataset.prepare_dataset()
-    train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset)
+    dataset.prepare_dataset(past_inputs=args.past_inputs)
+    train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset, past_inputs=args.past_inputs)
 
     # Resume training
     best_epoch = 0
@@ -399,19 +402,21 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt) in tqdm(enumerate(train_loader)):
+        for i, (input, gt, predict_input) in tqdm(enumerate(train_loader)):
             # Time dataloader
             data_time.update(time.time() - end)
 
             # Put inputs on gpu if possible
             if not args.no_cuda:
-                input, gt = input.cuda(), gt.cuda()
+                input, gt, predict_input = input.cuda(), gt.cuda(), predict_input.cuda()
             
             # Sample augmantion from sparse input (lidar)
             if args.sampler_input == "sparse_input":
-                sample_out, bin_pred_map, pred_map = task_model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
             elif args.sampler_input == "gt":
-                sample_out, bin_pred_map, pred_map = task_model.sampler(gt)
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
+            elif args.sampler_input == 'predict_from_past':
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input=predict_input, sampler_from=gt)
             else:
                 raise ValueError('input to Sampler is not valid')
 
@@ -590,27 +595,29 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     model.sampler.eval()
     list_n_pooints = []
     time_list = []
-    
+
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt, name) in tqdm(enumerate(loader)):
-            # to do- delete
-            base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/val/'
-            folder = name[0][:name[0].rfind('/')]
-            file_name= name[0][name[0].rfind('/'):]
+        for i, (input, gt, predict_input) in tqdm(enumerate(loader)):
+            # # to do- delete
+            # base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/val/'
+            # folder = name[0][:name[0].rfind('/')]
+            # file_name= name[0][name[0].rfind('/'):]
 
-            if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
-                if not args.no_cuda:
-                    input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
-                
+            # if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
+            if not args.no_cuda:
+                input, gt, predict_input = input.cuda(non_blocking=True), gt.cuda(non_blocking=True), predict_input.cuda(non_blocking=True)
+            
                 start_samp = time.time()
-                if args.sampler_input == "sparse_input":
-                    sample_out, bin_pred_map, pred_map = model.sampler(input[:,0,:,:].unsqueeze(dim =1)) 
-                elif args.sampler_input == "gt":
-                    sample_out, bin_pred_map, pred_map = model.sampler(gt)
-                else:
-                    raise ValueError('input to Sampler is not valid')
+            if args.sampler_input == "sparse_input":
+                sample_out, bin_pred_map, pred_map = model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
+            elif args.sampler_input == "gt":
+                sample_out, bin_pred_map, pred_map = model.sampler(input=gt, sampler_from=gt)
+            elif args.sampler_input == 'predict_from_past':
+                sample_out, bin_pred_map, pred_map = model.sampler(input=predict_input, sampler_from=gt)
+            else:
+                raise ValueError('input to Sampler is not valid')
 
                 ### try
                 # new = torch.zeros(sample_out.shape).cuda()
@@ -627,74 +634,74 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 
                 
                 
-                end_samp = time.time()
-                # sample_out, bin_pred_map, = model.sampler(gt)  
-                time_list.append(end_samp - start_samp)
+            end_samp = time.time()
+            # sample_out, bin_pred_map, = model.sampler(gt)  
+            time_list.append(end_samp - start_samp)
 
-                sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
-                
-                # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
+            sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
-                if args.sampler_type == 'global_mask':
-                    list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
-                else:
-                    list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
-
-                prediction, lidar_out, precise, guide = model(sample_input, epoch)
-
-                # save locally npz - TODO delete after 
-                if not os.path.exists(base_path+folder):
-                    os.makedirs(base_path+folder)
-                    # mask= sample_out[0,0,:,:] > 0.001
-                    # indices = mask.nonzero()
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=pred_map.type(torch.int).detach().cpu().numpy())  
-
-                loss = criterion_local(prediction, gt, epoch)
-                loss_lidar = criterion_lidar(lidar_out, gt, epoch)
-                loss_rgb = criterion_rgb(precise, gt, epoch)
-                loss_guide = criterion_guide(guide, gt, epoch)
-                loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
-                
-                # Sampler loss
-                # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
-                loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-
-                loss_softarg =torch.zeros(1).cuda()
-                # loss_softarg = model.sampler.module.get_softargmax_loss()
-                
+            # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
         
-                # total loss
+            if args.sampler_type == 'global_mask':
+                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
+            else:
+                list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
+
+            prediction, lidar_out, precise, guide = model(sample_input, epoch)
+
+            # save locally npz - TODO delete after 
+            # if not os.path.exists(base_path+folder):
+            #     os.makedirs(base_path+folder)
+            #     # mask= sample_out[0,0,:,:] > 0.001
+            #     # indices = mask.nonzero()
+            # np.savez_compressed(base_path + folder +"/"+ file_name , a=pred_map.type(torch.int).detach().cpu().numpy())  
+
+            loss = criterion_local(prediction, gt, epoch)
+            loss_lidar = criterion_lidar(lidar_out, gt, epoch)
+            loss_rgb = criterion_rgb(precise, gt, epoch)
+            loss_guide = criterion_guide(guide, gt, epoch)
+            loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
-                total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
-                
-                # if args.sampler_type == 'global_mask':
-                #     loss_global_mask = model.sampler.module.global_mask_loss()
-                #     total_loss = total_loss + 0.2* loss_global_mask
-                # if i % 100 ==0 :
-                #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
-                #                                                                                             str(loss_number_sampler.item()),
-                #                                                                                             str(loss_softarg.item()),
-                #                                                                                             str(total_loss.item()) ))
-                
-                
-                losses.update(total_loss.item(), input.size(0))
-                task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
-                samp_loss.update(loss_number_sampler.item(), input.size(0))
+            # Sampler loss
+            # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
+            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-                metric.calculate(prediction[:, 0:1], gt)
-                score.update(metric.get_metric(args.metric), metric.num)
-                score_1.update(metric.get_metric(args.metric_1), metric.num)
+            loss_softarg =torch.zeros(1).cuda()
+            # loss_softarg = model.sampler.module.get_softargmax_loss()
+            
+    
+            # total loss
+        
+            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
+            
+            # if args.sampler_type == 'global_mask':
+            #     loss_global_mask = model.sampler.module.global_mask_loss()
+            #     total_loss = total_loss + 0.2* loss_global_mask
+            # if i % 100 ==0 :
+            #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
+            #                                                                                             str(loss_number_sampler.item()),
+            #                                                                                             str(loss_softarg.item()),
+            #                                                                                             str(total_loss.item()) ))
+            
+            
+            losses.update(total_loss.item(), input.size(0))
+            task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
+            samp_loss.update(loss_number_sampler.item(), input.size(0))
 
-                if (i + 1) % args.print_freq == 0:
-        
-                    print('Test: [{0}/{1}]\t'
-                        'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
-                        'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
-                        'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
-                        'Metric {score.val:.4f} ({score.avg:.4f})'.format(
-                        i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
-                        score=score))
-        
+            metric.calculate(prediction[:, 0:1], gt)
+            score.update(metric.get_metric(args.metric), metric.num)
+            score_1.update(metric.get_metric(args.metric_1), metric.num)
+
+            if (i + 1) % args.print_freq == 0:
+    
+                print('Test: [{0}/{1}]\t'
+                    'Toatal {loss.val:.4f} ({loss.avg:.4f})\t'
+                    'Task Loss {task_loss.val:.4f} ({task_loss.avg:.4f})\t'
+                    'Samp Loss {samp_loss.val:.4f} ({samp_loss.avg:.4f})\t'
+                    'Metric {score.val:.4f} ({score.avg:.4f})'.format(
+                    i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
+                    score=score))
+    
         avg_point_per_image = np.mean(list_n_pooints)
         print("avergae time per image:")
         print(np.mean(time_list))

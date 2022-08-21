@@ -1,5 +1,6 @@
 from torch import nn
 import torch
+from torchsummary import summary
 import numpy as np
 
 # def softargmax2d(input, beta=100):
@@ -185,9 +186,9 @@ class DownBlock(nn.Module):
 
         # conv layers
         self.conv1 = get_conv_layer(self.in_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
-                                    bias=True, dim=self.dim)
+                                    bias=True, dim=self.dim) 
         self.conv2 = get_conv_layer(self.out_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
-                                    bias=True, dim=self.dim)
+            bias=True, dim=self.dim)
 
         # pooling layer
         if self.pooling:
@@ -260,7 +261,7 @@ class UpBlock(nn.Module):
                                     bias=True, dim=self.dim)
         self.conv2 = get_conv_layer(self.out_channels, self.out_channels, kernel_size=3, stride=1, padding=self.padding,
                                     bias=True, dim=self.dim)
-
+  
         # activation layers
         self.act0 = get_activation(self.activation)
         self.act1 = get_activation(self.activation)
@@ -305,11 +306,11 @@ class UpBlock(nn.Module):
             y = self.norm2(y)  # normalization 2
         return y
 
-class SampleDepth(nn.Module):
+class PredNet(nn.Module):
     def __init__(self,
                  in_channels: int = 1,
-                 out_channels: int = 2,
-                 n_blocks: int = 4,
+                 out_channels: int = 1,
+                 n_blocks: int = 5,
                  start_filters: int = 32,
                  activation: str = 'relu',
                  normalization: str = 'batch',
@@ -379,6 +380,8 @@ class SampleDepth(nn.Module):
         
         self.softargmax = Softargmax2d()
 
+        self.sigmoid = nn.Sigmoid() 
+
         
     @staticmethod   
     def weight_init(module, method, **kwargs):
@@ -401,11 +404,11 @@ class SampleDepth(nn.Module):
             self.bias_init(module, method_bias, **kwargs_bias)  # initialize bias
 
 
-    def forward(self, input: torch.tensor, sampler_from:torch.tensor):
+    def forward(self, past_input: torch.tensor, ):
         encoder_output = []
 
         ## U-Net part
-        x = input
+        x = past_input
         # Encoder pathway
         for module in self.down_blocks:
             x, before_pooling = module(x)
@@ -418,13 +421,14 @@ class SampleDepth(nn.Module):
 
         x = self.conv_final(x) #  B x C=2 x H x W 
 
-        bin_pred_map = self.soft_max(x)
+        x = self.sigmoid(x) * 85
+        # bin_pred_map = self.soft_max(x)
         
-        pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
+        # pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
 
-        sample_out = pred_map * sampler_from
+        # sample_out = pred_map * gt
 
-        return sample_out, bin_pred_map, pred_map
+        return x
 
     def __repr__(self):
         attributes = {attr_key: self.__dict__[attr_key] for attr_key in self.__dict__.keys() if '_' not in attr_key[0] and 'training' not in attr_key}
