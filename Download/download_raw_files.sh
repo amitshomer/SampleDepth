@@ -17,9 +17,14 @@
 function download_files(){
     mkdir -p '../Data'
     cd '../Data'
-    wget 'http://www.cvlibs.net/download.php?file=data_depth_annotated.zip'
-    wget 'http://www.cvlibs.net/download.php?file=data_depth_velodyne.zip'
-    wget 'http://www.cvlibs.net/download.php?file=data_depth_selection.zip'
+    wget 'https://s3.eu-central-1.amazonaws.com/avg-kitti/data_depth_selection.zip'
+	wget 'https://s3.eu-central-1.amazonaws.com/avg-kitti/data_depth_velodyne.zip'
+	wget 'https://s3.eu-central-1.amazonaws.com/avg-kitti/data_depth_annotated.zip'
+	
+	
+	# wget 'http://www.cvlibs.net/download.php?file=data_depth_annotated.zip'
+    # wget 'http://www.cvlibs.net/download.php?file=data_depth_velodyne.zip'
+    # wget 'http://www.cvlibs.net/download.php?file=data_depth_selection.zip'
 }
 
 function unzip_files(){
@@ -63,7 +68,7 @@ function Download_files(){
 		rm -rf $name
 	done
 }
-
+download_files
 unzip_files
 
 cd '../Data/train'
