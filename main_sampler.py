@@ -228,7 +228,11 @@ def main():
         print("Load wieght for task with sampler")
         checkpoint = torch.load(args.finetune_path)
         task_model.load_state_dict(checkpoint['state_dict'])
-    
+        #Added - need to delete
+        task_model.requires_grad_(False)
+        task_model.eval().cuda()
+        task_model.sampler.requires_grad_(True)
+        task_model.sampler.train()
     # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
     learnable_params = [x for x in task_model.parameters() if x.requires_grad]
 
@@ -392,7 +396,9 @@ def main():
 
         # Train model for args.nepochs
         if args.fine_tune:
-            task_model.train()
+            # task_model.train() # need to unmask
+            task_model.eval()
+
         else:
             task_model.eval()
         task_model.sampler.train()

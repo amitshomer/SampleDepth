@@ -159,9 +159,11 @@ parser.add_argument('--dist_url', default='env://', help='url used to set up dis
 parser.add_argument('--local_rank', dest="local_rank", default=0, type=int)
 
 cuda_send = "cuda:{0}".format(str(parser.parse_args().gpu_device[0]))
+
 def main():
     global args
     args = parser.parse_args()
+    args.sampler_input ='None'
     if args.num_samples == 0:
         args.num_samples = None
     if args.val_batch_size is None:
@@ -391,7 +393,7 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt, past_depth) in tqdm(enumerate(train_loader)):
+        for i, (input, gt, past_depth,_) in tqdm(enumerate(train_loader)):
             # Time dataloader
             data_time.update(time.time() - end)
 
