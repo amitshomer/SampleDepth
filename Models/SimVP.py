@@ -147,20 +147,20 @@ class Mid_Xnet(nn.Module):
 
 
 class SimVP(nn.Module):
-    def __init__(self, shape_in, hid_S=32, hid_T=256, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=8):
+    def __init__(self, shape_in, hid_S=32, hid_T=128, N_S=4, N_T=8, incep_ker=[3,5,7,11], groups=4):
         super(SimVP, self).__init__()
         T, C, H, W = shape_in
         self.enc = Encoder(C, hid_S, N_S)
         self.hid = Mid_Xnet(T*hid_S, hid_T, N_T, incep_ker, groups)
 
-        self.C_out = 2
+        self.C_out = 1
         self.dec = Decoder(hid_S, self.C_out, N_S)
         
         self.soft_max = nn.Softmax(dim=1)
         
         self.softargmax = Softargmax2d()
 
-    def forward(self, x_raw, gt):
+    def forward(self, x_raw):
         x_raw = x_raw.unsqueeze(2)
         
         B, T, C, H, W = x_raw.shape
@@ -175,12 +175,12 @@ class SimVP(nn.Module):
         Y = self.dec(hid, skip)
         Y = Y.reshape(B, T, self.C_out, H, W)
 
-        ### sampledepth part ##
-        y = Y[:,0,:,:,:]
-        bin_pred_map = self.soft_max(y)
+        # ### sampledepth part ##
+        # y = Y[:,0,:,:,:]
+        # bin_pred_map = self.soft_max(y)
         
-        pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
+        # pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
 
-        sample_out = pred_map * gt
+        # sample_out = pred_map * gt
 
-        return sample_out, bin_pred_map, pred_map
+        return Y[:,0,:,:]

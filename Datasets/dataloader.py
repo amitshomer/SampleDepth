@@ -33,13 +33,13 @@ def get_loader(args, dataset, past_inputs = 0, past_input_path =''):
             rotate=args.rotate, crop=crop_size, flip=args.flip, rescale=args.rescale,
             max_depth=args.max_depth, sparse_val=args.sparse_val, normal=args.normal, 
             disp=args.use_disp, train=perform_transformation, num_samples=args.num_samples, dataset=args.dataset,
-            past_inputs=past_inputs, past_input_path=past_input_path)
+            past_inputs=past_inputs, past_input_path=past_input_path, sampler_input=args.sampler_input )
     val_dataset = Dataset_loader(
             data_path, dataset.val_paths, args.input_type, resize=None,
             rotate=args.rotate, crop=crop_size, flip=args.flip, rescale=args.rescale,
             max_depth=args.max_depth, sparse_val=args.sparse_val, normal=args.normal, 
             disp=args.use_disp, train=False, num_samples=args.num_samples, dataset=args.dataset, past_inputs=past_inputs,
-            past_input_path=past_input_path)
+            past_input_path=past_input_path, sampler_input=args.sampler_input)
     if args.dataset =='kitti':
         val_select_dataset = Dataset_loader(
                 data_path, dataset.selected_paths, args.input_type,
@@ -80,7 +80,7 @@ class Dataset_loader(Dataset):
 
     def __init__(self, data_path, dataset_type, input_type, resize,
                  rotate, crop, flip, rescale, max_depth, dataset, sparse_val=0.0, 
-                 normal=False, disp=False, train=False, num_samples=None, past_inputs = 0, past_input_path =''):
+                 normal=False, disp=False, train=False, num_samples=None, past_inputs = 0, past_input_path ='',sampler_input = 'gt'):
 
         # Constants
         self.use_rgb = input_type == 'rgb'
@@ -97,6 +97,7 @@ class Dataset_loader(Dataset):
         self.dataset =dataset
         self.past_inputs = past_inputs
         self.past_input_path = past_input_path
+        self.sampler_input = sampler_input
 
         # Transformations
         self.totensor = transforms.ToTensor()
@@ -202,7 +203,7 @@ class Dataset_loader(Dataset):
             img_tensor = img_tensor*255.0
             input = torch.cat((input, img_tensor), dim=0)
         
-        if self.past_inputs != 0:
+        if self.past_inputs != 0 and self.sampler_input != 'predict_from_past':
             ## right now only support t-1 past input
             full_file_path = self.dataset_type[self.gt_name][idx]
             val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
@@ -214,10 +215,10 @@ class Dataset_loader(Dataset):
             indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/'
             past_data_path = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
             
-            if os.path.exists(past_data_path):
-                with np.load(past_data_path, allow_pickle=True) as data:
-                    indicies_current_predmap = data['a'].squeeze()
-                    indicies_current_predmap = self.totensor(indicies_current_predmap).float()
+            # if os.path.exists(past_data_path):
+            #     with np.load(past_data_path, allow_pickle=True) as data:
+            #         indicies_current_predmap = data['a'].squeeze()
+            #         indicies_current_predmap = self.totensor(indicies_current_predmap).float()
                     # size_tens= indicies_current_predmap.shape[1] - 1
                     # pad = torch.zeros(1,100000-size_tens,2)
                     # last_element =  torch.tensor([[[size_tens, size_tens]]])
@@ -226,7 +227,7 @@ class Dataset_loader(Dataset):
             # Past depth loader
             for i in range(1, self.past_inputs+1):
                 file_index = str(int(file_name[1: file_name.find('_')]) - 10 *i).rjust(8,'0')
-                sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
+                sceene_folder = full_file_path[full_file_path.find('front')+6: full_file_path.rfind('/')]
                 past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
                 if os.path.exists(past_data_path):
                     with np.load(past_data_path, allow_pickle=True) as data:
@@ -242,9 +243,34 @@ class Dataset_loader(Dataset):
                 else: 
                     raise Exception("No past data .npz file in {0}".format(past_data_path))
             
-            return input, gt, past_depths, indicies_current_predmap
+            # TODO - delete
+            name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
         
-        # TODO - delete
-        name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
+            
+            return input, gt, past_depths, name
         
-        return input, gt, name
+        elif self.past_inputs != 0 and self.sampler_input == 'predict_from_past':
+            full_file_path = self.dataset_type[self.gt_name][idx]
+            val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
+            file_name = full_file_path[full_file_path.rfind('/'):]
+            
+            file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
+            sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
+            indices_base_path = '/datadrive/SHIFT/pred_intime_depthmaps/'
+            predict_input = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+            
+            if os.path.exists(predict_input):
+                with np.load(predict_input, allow_pickle=True) as data:
+                    tensor_predict_input = data['a'].squeeze()
+                    tensor_predict_input = self.totensor(tensor_predict_input).float()
+
+            return input, gt, tensor_predict_input
+
+
+
+        
+        else: 
+            # TODO - delete
+            name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
+        
+            return input, gt, name

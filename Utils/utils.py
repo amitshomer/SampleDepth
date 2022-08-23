@@ -22,6 +22,18 @@ import torch.nn.init as init
 import torch.distributed as dist
 import random
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib as npl
+
+def convert_depth_to_rgb(input):
+    # vmax = np.percentile(input,85)      
+    norm= npl.colors.Normalize(vmin = 0,vmax= 85)
+    mapper = cm.ScalarMappable(norm=norm, cmap="Spectral")
+    color_im = (mapper.to_rgba(input)[:,:,:3]*255).astype(np.uint8)
+    return color_im
+
+
 def sample_random(depth, ratio, n_sample, sample_factor_type, batch_size):
     torch.seed()
 
