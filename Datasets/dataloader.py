@@ -205,43 +205,44 @@ class Dataset_loader(Dataset):
         
         if self.past_inputs != 0 and self.sampler_input != 'predict_from_past':
             ## right now only support t-1 past input
-            full_file_path = self.dataset_type[self.gt_name][idx]
-            val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
-            file_name = full_file_path[full_file_path.rfind('/'):]
+            if self.dataset =='SHIFT':
+                full_file_path = self.dataset_type[self.gt_name][idx]
+                val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
+                file_name = full_file_path[full_file_path.rfind('/'):]
+                
+                #Current predicated depth loader
+                file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
+                sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
+                indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/'
+                past_data_path = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+                
+                # if os.path.exists(past_data_path):
+                #     with np.load(past_data_path, allow_pickle=True) as data:
+                #         indicies_current_predmap = data['a'].squeeze()
+                #         indicies_current_predmap = self.totensor(indicies_current_predmap).float()
+                        # size_tens= indicies_current_predmap.shape[1] - 1
+                        # pad = torch.zeros(1,100000-size_tens,2)
+                        # last_element =  torch.tensor([[[size_tens, size_tens]]])
+                        # big_indices = torch.cat((indicies_current_predmap, pad, last_element), dim=1)
+
+                # Past depth loader
+                for i in range(1, self.past_inputs+1):
+                    file_index = str(int(file_name[1: file_name.find('_')]) - 10 *i).rjust(8,'0')
+                    sceene_folder = full_file_path[full_file_path.find('front')+6: full_file_path.rfind('/')]
+                    past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+                    if os.path.exists(past_data_path):
+                        with np.load(past_data_path, allow_pickle=True) as data:
+                            past_depth = data['a'].squeeze()
+                            past_depth = self.totensor(past_depth).float()
+                            if i == 1:
+                                past_depths= past_depth
+                            else:
+                                past_depths = torch.cat((past_depths,past_depth),0)
+                    else: 
+                        raise Exception("No past data .npz file in {0}".format(past_data_path))
             
-            #Current predicated depth loader
-            file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
-            sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
-            indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/'
-            past_data_path = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
-            
-            # if os.path.exists(past_data_path):
-            #     with np.load(past_data_path, allow_pickle=True) as data:
-            #         indicies_current_predmap = data['a'].squeeze()
-            #         indicies_current_predmap = self.totensor(indicies_current_predmap).float()
-                    # size_tens= indicies_current_predmap.shape[1] - 1
-                    # pad = torch.zeros(1,100000-size_tens,2)
-                    # last_element =  torch.tensor([[[size_tens, size_tens]]])
-                    # big_indices = torch.cat((indicies_current_predmap, pad, last_element), dim=1)
-
-            # Past depth loader
-            for i in range(1, self.past_inputs+1):
-                file_index = str(int(file_name[1: file_name.find('_')]) - 10 *i).rjust(8,'0')
-                sceene_folder = full_file_path[full_file_path.find('front')+6: full_file_path.rfind('/')]
-                past_data_path = self.past_input_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
-                if os.path.exists(past_data_path):
-                    with np.load(past_data_path, allow_pickle=True) as data:
-                        past_depth = data['a'].squeeze()
-                        past_depth = self.totensor(past_depth).float()
-                        if i == 1:
-                            past_depths= past_depth
-                        else:
-                            past_depths = torch.cat((past_depths,past_depth),0)
-                        
-
-
-                else: 
-                    raise Exception("No past data .npz file in {0}".format(past_data_path))
+            else: # kitti dataset
+                full_file_path = self.dataset_type[self.gt_name][idx]
             
             # TODO - delete
             name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
@@ -271,6 +272,8 @@ class Dataset_loader(Dataset):
         
         else: 
             # TODO - delete
-            name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
-        
+            if self.dataset == 'SHIFT':
+                name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
+            else:
+                name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('Data') +5:self.dataset_type[self.img_name][idx].rfind('.png')]
             return input, gt, name

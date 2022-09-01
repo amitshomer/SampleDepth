@@ -76,13 +76,15 @@ parser.add_argument('--sample_factor_type', type=str, default='ratio', help='rat
 parser.add_argument('--sample_method', type=str, default='random', help='random/uniform')
 
 # Paths settings
-#TODO - remove hard pathes
-parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/Saved/', help='save path')
-parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to Kitti dataset')
-parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
 
-parser.add_argument('--erfnet_weight', default='/home/amitshomer/Documents/SampleDepth//task_checkpoint/erfnet_pretrained.pth', help='path to desired dataset')
+base_dir_project= '/data/ashomer/project'
+parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
+parser.add_argument('--data_path', default='{0}/SampleDepth//Data/'.format(base_dir_project), help='path to desired dataset')
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_datset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
+
+parser.add_argument('--erfnet_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/erfnet_pretrained.pth'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
+parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -110,6 +112,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -124,7 +127,7 @@ parser.add_argument('--world_size', default=1, type=int,
 parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
 parser.add_argument('--local_rank', dest="local_rank", default=0, type=int)
 
-
+cuda_send = "cuda:{0}".format(str(parser.parse_args().gpu_device[0]))
 def main():
     global args
     args = parser.parse_args()
@@ -154,9 +157,9 @@ def main():
     # Load on gpu before passing params to optimizer
     if not args.no_cuda:
         if not args.multi:
-            model = model.cuda()
+            model = model.to(cuda_send)
         else:
-            model = torch.nn.DataParallel(model).cuda()
+            model = torch.nn.DataParallel(model, device_ids = args.gpu_device).to(cuda_send)
             # model.cuda()
             # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
             # model = model.module
@@ -238,7 +241,10 @@ def main():
         else:
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
         if  args.dataset == 'kitti' :
-            validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+            validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+            # validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+            # validate(train_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+
         else: 
             validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
         return
@@ -322,14 +328,14 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt) in tqdm(enumerate(train_loader)):
+        for i, (input, gt,_) in tqdm(enumerate(train_loader)):
 
             # Time dataloader
             data_time.update(time.time() - end)
 
             # Put inputs on gpu if possible
             if not args.no_cuda:
-                input, gt = input.cuda(), gt.cuda()
+                input, gt = input.to(cuda_send), gt.to(cuda_send)
             
             if args.sampler_input == "sparse_input":
                 input = input
@@ -456,9 +462,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt) in tqdm(enumerate(loader)):
+        for i, (input, gt, name) in tqdm(enumerate(loader)):
             if not args.no_cuda:
-                input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
+                input, gt = input.to(cuda_send), gt.to(cuda_send)
             
             if args.sampler_input == "sparse_input":
                 input = input
@@ -488,6 +494,14 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             loss_guide = criterion_guide(guide, gt, epoch)
             loss = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             losses.update(loss.item(), input.size(0))
+
+            if args.save_pred: 
+                base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                folder = name[0][:name[0].rfind('/')]
+                file_name= name[0][name[0].rfind('/'):]
+                if not os.path.exists(base_path+folder):
+                    os.makedirs(base_path+folder)
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())
 
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)

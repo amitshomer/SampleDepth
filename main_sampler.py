@@ -72,7 +72,7 @@ parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample p
 parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
 parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
 parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/predict_from_past')
-parser.add_argument('--past_inputs', type=int, default=4, help='Number of past depths inputs which freated depth predictaion')
+parser.add_argument('--past_inputs', type=int, default=0, help='Number of past depths inputs which freated depth predictaion')
 
 
 
@@ -98,16 +98,18 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 
 # Paths settings
 #TODO - remove hard pathes
-parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/checkpoints/general_save', help='save path')
-parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth//Data/', help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images', help='path to SHIFT dataset')
+base_dir_project= '/data/ashomer/project'
+parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
+parser.add_argument('--data_path', default='{0}/SampleDepth//Data/'.format(base_dir_project), help='path to desired dataset')
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_datset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar', help='path to desired dataset')
+parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar'.format(base_dir_project), help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
+parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
 
 
 # Optimizer settings
@@ -262,7 +264,9 @@ def main():
         data_path = args.data_path_SHIFT
     
     dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
-    dataset.prepare_dataset(past_inputs=args.past_inputs)
+    # dataset.prepare_dataset(past_inputs=args.past_inputs)
+    dataset.prepare_dataset()
+
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset, past_inputs=args.past_inputs)
 
     # Resume training
@@ -314,6 +318,9 @@ def main():
        
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+
         else: 
             validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
             # validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args) # TODO replace
@@ -613,7 +620,11 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             # if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
             if not args.no_cuda:
-                input, gt, predict_input = input.cuda(non_blocking=True), gt.cuda(non_blocking=True), predict_input.cuda(non_blocking=True)
+                if isinstance([predict_input], list):
+                    input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
+                    name = predict_input
+                else:
+                    input, gt, predict_input = input.cuda(non_blocking=True), gt.cuda(non_blocking=True), predict_input.cuda(non_blocking=True)
             
                 start_samp = time.time()
             if args.sampler_input == "sparse_input":
@@ -688,7 +699,14 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             #                                                                                             str(loss_number_sampler.item()),
             #                                                                                             str(loss_softarg.item()),
             #                                                                                             str(total_loss.item()) ))
-            
+            if args.save_pred: 
+                base_path = '/data/ashomer/project/SampleDepth/Data/pred_sample/'
+                folder = name[0][:name[0].rfind('/')]
+                file_name= name[0][name[0].rfind('/'):]
+                if not os.path.exists(base_path+folder):
+                    os.makedirs(base_path+folder)
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())
+
             
             losses.update(total_loss.item(), input.size(0))
             task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 

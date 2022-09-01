@@ -21,7 +21,7 @@
             "justMyCode": true,
             "args": [
                 "--batch_size",
-                "10",
+                "1",
                 "--nworkers",
                 "8",
                 "--multi",
@@ -31,12 +31,19 @@
                 "--sampler_input",
                 "gt",
                 "--sample_factor_type",
-                "n_points",
+                "None",
+                "--sample_ratio",
+                "1",
                 "--sample_method",
                 "random",
                 "--print_freq",
-                "200"
-            ]
+                "200",
+                "--evaluate",
+                "--eval_path",
+                "/data/ashomer/project/SampleDepth/checkpoints/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar",
+                "--save_pred",
+                "True"
+            ]   
         },
         {
             "name": "Main_task_SHIFT_data_lidar_in",
@@ -93,7 +100,7 @@
                 "--sampler_input",
                 "gt",
                 "--sample_factor_type",
-                "n_points",
+                "None",
                 "--print_freq",
                 "20",
                 "--learning_rate",
@@ -107,6 +114,7 @@
                 "--evaluate",
                 "--eval_path",
                 "/home/amitshomer/Documents/SampleDepth/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar"
+ 
             ]
         },
         {
@@ -159,11 +167,13 @@
                 "True",
                 "--evaluate",
                 "--eval_path",
-                "/home/amitshomer/Documents/SampleDepth/Sampler_save/SR2/mod_adam_mse_0.0001_rgb_batch8_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples9600_multiTrue/model_best_epoch_16.pth.tar",
+                "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SR1_a02_b10_input_gt_seq2_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience2_num_samples19000_multiTrue/model_best_epoch_5.pth.tar",
                 "--n_sample",
-                "9600",
+                "19000",
                 "--sampler_input",
-                "sparse_input",
+                "gt",
+                "--save_pred",
+                "True"
             ]
             },
             {
@@ -315,17 +325,15 @@
                                 "justMyCode": true,
                                 "args": [
                                     "--batch_size",
-                                    "8",
+                                    "1",
                                     "--past_inputs",
                                     "4",
                                     "--nworkers",
-                                    "8",
-                                    "--dataset",
-                                    "SHIFT",
+                                    "0",
                                     "--multi",
                                     "True",
                                     "--model_type",
-                                    "SimVP",         
+                                    "Unet",         
                                     "--lr_policy",
                                     "step",
                                     "--lr_decay_iters",
@@ -333,7 +341,7 @@
                                     "--print_freq",
                                     "20",
                                     "--learning_rate",
-                                    "0.2",
+                                    "0.0001",
                                     "--alpha",
                                     "0.1",
                                     "--beta",

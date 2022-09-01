@@ -37,19 +37,19 @@ class SHIFT_preprocessing(object):
             remove_list_rgb = ['00000000_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png']
 
-        elif past_inputs == 2: # not fully supported yet
+        elif past_inputs == 2: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png' ]
         
-        elif past_inputs == 3: # not fully supported yet
+        elif past_inputs == 3: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png' ]
         
-        elif past_inputs == 4: # not fully supported yet
+        elif past_inputs == 4: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png' ]
         
-        elif past_inputs == 5: # not fully supported yet
+        elif past_inputs == 5: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg','00000040_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png','00000040_depth_front.png' ]
 

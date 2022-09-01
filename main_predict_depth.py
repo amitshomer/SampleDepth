@@ -101,17 +101,18 @@ parser.add_argument('--model_type', type=str, default='Unet', help='Unet/SimVP')
 
 # Paths settings
 #TODO - remove hard pathes
-parser.add_argument('--save_path', default='/home/amitshomer/Documents/SampleDepth/checkpoints/general_save/', help='save path')
-parser.add_argument('--data_path', default='/home/amitshomer/Documents/SampleDepth/Data/', help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='/datadrive/SHIFT/discrete/images/', help='path to SHIFT dataset')
-parser.add_argument('--past_input_path', default='/datadrive/SHIFT/sample/', help='path to SHIFT dataset')
+base_dir_project= '/data/ashomer/project'
+parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save/'.format(base_dir_project), help='save path')
+parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images/.format(base_dir_project)'.format(base_dir_project), help='path to SHIFT dataset')
+parser.add_argument('--past_input_path', default='{0}/SHIFT_dataset/sample/'.format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
 
 
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar', help='path to desired dataset')
+# parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar', help='path to desired dataset')
 
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -274,6 +275,8 @@ def main():
     
     dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
     dataset.prepare_dataset(past_inputs=args.past_inputs)
+    # dataset.prepare_dataset()
+
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset, past_inputs=args.past_inputs, past_input_path=args.past_input_path)
 
     # Resume training

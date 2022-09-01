@@ -54,8 +54,34 @@ class Kitti_preprocessing(object):
         self.use_rgb = True
         self.date_selection = '2011_09_26'
 
-    def get_paths(self):
+    def get_paths(self, past_inputs = 0):
         # train and validation dirs
+        
+        if past_inputs == 0:
+            remove_list_rgb = []
+            remove_list_depth = []
+
+        elif past_inputs == 1:
+            remove_list_rgb = ['00000000_img_front.jpg']
+            remove_list_depth = ['00000000_depth_front.png']
+
+        elif past_inputs == 2: 
+            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg']
+            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png' ]
+        
+        elif past_inputs == 3: 
+            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg']
+            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png' ]
+        
+        elif past_inputs == 4: 
+            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg']
+            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png' ]
+        
+        elif past_inputs == 5: 
+            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg','00000040_img_front.jpg']
+            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png','00000040_depth_front.png' ]
+        
+        
         for type_set in os.listdir(self.dataset_path):
             for root, dirs, files in os.walk(os.path.join(self.dataset_path, type_set)):
                 if re.search(self.depth_keyword, root):
@@ -152,10 +178,10 @@ class Kitti_preprocessing(object):
             files.append(os.path.join(self.dataset_path, os.path.join(selection, file)))
         return files
 
-    def prepare_dataset(self):
+    def prepare_dataset(self, past_inputs =0):
         path_to_val_sel = 'depth_selection/val_selection_cropped'
         path_to_test = 'depth_selection/test_depth_completion_anonymous'
-        self.get_paths()
+        self.get_paths( past_inputs=past_inputs)
         self.selected_paths['lidar_in'] = self.get_selected_paths(os.path.join(path_to_val_sel, 'velodyne_raw'))
         self.selected_paths['gt'] = self.get_selected_paths(os.path.join(path_to_val_sel, 'groundtruth_depth'))
         self.selected_paths['img'] = self.get_selected_paths(os.path.join(path_to_val_sel, 'image'))
