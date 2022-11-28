@@ -26,7 +26,7 @@ from Loss.loss import define_loss, allowed_losses, MSE_loss
 from Loss.benchmark_metrics import Metrics, allowed_metrics
 from Datasets.dataloader import get_loader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from Utils.utils import str2bool, define_optim, define_scheduler, \
+from Utils.utils import plot_images, str2bool, define_optim, define_scheduler, \
                         Logger, AverageMeter, first_run, mkdir_if_missing, \
                         define_init_weights, init_distributed_mode, sample_random
 
@@ -71,7 +71,7 @@ parser.add_argument('--n_sample', type=int, default=19000, help='Number of sampl
 parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
 parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
 parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
-parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/predict_from_past')
+parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/predict_from_past/pseudo_gt')
 parser.add_argument('--past_inputs', type=int, default=0, help='Number of past depths inputs which freated depth predictaion')
 
 
@@ -92,7 +92,7 @@ parser.add_argument('--sample_ratio', default=1, type=int, help='Sample ration f
 
 parser.add_argument("--fine_tune", type=str2bool, nargs='?', default=False, help="finetuning sampler and task togheter")
 parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='SampleDepth/global_mask')
-
+parser.add_argument("--plot_paper", type=str2bool, nargs='?', const=True,default=False, help="plot image for paper")
 
 
 
@@ -100,13 +100,12 @@ parser.add_argument('--sampler_type', type=str, default='SampleDepth', help='Sam
 #TODO - remove hard pathes
 base_dir_project= '/data/ashomer/project'
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
-parser.add_argument('--data_path', default='{0}/SampleDepth//Data/'.format(base_dir_project), help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_datset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
+parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
 
 #parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
 # parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar'.format(base_dir_project), help='path to desired dataset')
-
+parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/kitti_pseudoGT_random_19k/mod_adam_mse_0.002_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_12.pth.tar'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
@@ -138,6 +137,8 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -146,12 +147,15 @@ parser.add_argument("--use_disp", type=str2bool, nargs='?', const=True,
                     default=False, help="regress towards disparities")
 parser.add_argument('--num_samples', default=0, type=int, help='number of samples')
 
+
+
 # distributed training
 parser.add_argument('--world_size', default=1, type=int,
                     help='number of distributed processes')
 parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
 parser.add_argument('--local_rank', dest="local_rank", default=0, type=int)
 
+cuda_send = "cuda:{0}".format(str(parser.parse_args().gpu_device[0]))
 
 def main():
     global args
@@ -185,7 +189,7 @@ def main():
         if not args.multi:
             task_model = task_model.cuda()
         else:
-            task_model = torch.nn.DataParallel(task_model).cuda()
+            task_model = torch.nn.DataParallel(task_model, device_ids = args.gpu_device).to(cuda_send)
             # model.cuda()
             # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
             # model = model.module
@@ -193,12 +197,11 @@ def main():
         checkpoint = torch.load(args.task_weight)
         task_model.load_state_dict(checkpoint['state_dict'])
         task_model.requires_grad_(False)
-        task_model.eval().cuda()
+        task_model.eval().to(cuda_send)
     else:
-        # task_model.requires_grad_(False)
-        # task_model.eval().cuda()
+
         task_model.requires_grad_(True)
-        task_model.train().cuda()
+        task_model.train().to(cuda_send)
 
     ## Define the sampler
     if args.sampler_type == 'SampleDepth':
@@ -216,7 +219,7 @@ def main():
     if not args.multi:
         sampler = sampler.cuda()
     else:
-        sampler =torch.nn.DataParallel(sampler).cuda()
+        sampler =torch.nn.DataParallel(sampler,device_ids = args.gpu_device).to(cuda_send)
 
     sampler.requires_grad_(True)
     sampler.train()
@@ -230,11 +233,11 @@ def main():
         print("Load wieght for task with sampler")
         checkpoint = torch.load(args.finetune_path)
         task_model.load_state_dict(checkpoint['state_dict'])
-        #Added - need to delete
-        task_model.requires_grad_(False)
-        task_model.eval().cuda()
-        task_model.sampler.requires_grad_(True)
-        task_model.sampler.train()
+        # #Added - need to delete
+        # task_model.requires_grad_(False)
+        # task_model.eval().cuda()
+        # task_model.sampler.requires_grad_(True)
+        # task_model.sampler.train()
     # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
     learnable_params = [x for x in task_model.parameters() if x.requires_grad]
 
@@ -264,8 +267,8 @@ def main():
         data_path = args.data_path_SHIFT
     
     dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
-    # dataset.prepare_dataset(past_inputs=args.past_inputs)
-    dataset.prepare_dataset()
+    dataset.prepare_dataset(past_inputs=args.past_inputs, plot_paper=args.plot_paper, sampler_input=args.sampler_input)
+    #dataset.prepare_dataset()
 
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset, past_inputs=args.past_inputs)
 
@@ -318,8 +321,8 @@ def main():
        
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            # validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            # validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
 
         else: 
             validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
@@ -403,8 +406,7 @@ def main():
 
         # Train model for args.nepochs
         if args.fine_tune:
-            # task_model.train() # need to unmask
-            task_model.eval()
+            task_model.train() 
 
         else:
             task_model.eval()
@@ -421,12 +423,15 @@ def main():
 
             # Put inputs on gpu if possible
             if not args.no_cuda:
-                input, gt, predict_input = input.cuda(), gt.cuda(), predict_input.cuda()
+                if args.sampler_input =='pseudo_gt':
+                    input, gt = input.to(cuda_send), gt.to(cuda_send)
+                else:
+                    input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
             
             # Sample augmantion from sparse input (lidar)
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
-            elif args.sampler_input == "gt":
+            elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
             elif args.sampler_input == 'predict_from_past':
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input=predict_input, sampler_from=gt)
@@ -455,7 +460,7 @@ def main():
  
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg =torch.zeros(1).cuda()
+            loss_softarg =torch.zeros(1).to(cuda_send)
             # loss_softarg = task_model.sampler.module.get_softargmax_loss()
 
             # total loss
@@ -530,13 +535,15 @@ def main():
                 if args.sampler_type == 'global_mask':
                     print('Choice Loss {choice_loss.val:.4f} ({choice_loss.avg:.4f})'.format(choice_loss = choice_loss))
 
+            
+            
         avg_point_per_image = np.mean(list_n_pooints)
 
         print("===> Average RMSE score on training set is {:.4f}".format(score_train.avg))
         print("===> Average MAE score on training set is {:.4f}".format(score_train_1.avg))
         print("===> Average point per on training images {:.4f}".format(avg_point_per_image))
 
-        # Evaulate model on validation set
+        # # Evaulate model on validation set
         print("=> Start validation set")
         score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
         print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
@@ -544,7 +551,7 @@ def main():
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
-        if args.subset is None and args.dataset == 'kitti':
+        if args.subset is None and args.dataset == 'kitti' and ((not args.sampler_input == 'pseudo_gt') and (not args.sampler_input == 'predict_from_past')):
             print("=> Start selection validation set")
             score_selection, score_selection_1, losses_selection, avg_point_per_image_sel, avg_sample_loss_val = validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
             total_score = score_selection
@@ -600,7 +607,8 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     task_loss = AverageMeter()
     samp_loss = AverageMeter() 
     metric = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
-   
+    metric1 = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
+
     score = AverageMeter()
     score_1 = AverageMeter()
     # Evaluate model
@@ -609,6 +617,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     list_n_pooints = []
     time_list = []
 
+    pred_next_frame_rmse = []
+    dept_reconstruction_rmse = [ ] 
+    sceene_num = 1
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
@@ -620,34 +631,51 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             # if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
             if not args.no_cuda:
-                if isinstance([predict_input], list):
-                    input, gt = input.cuda(non_blocking=True), gt.cuda(non_blocking=True)
+                if isinstance(predict_input, list):
+                    input, gt = input.to(cuda_send), gt.to(cuda_send)
                     name = predict_input
                 else:
-                    input, gt, predict_input = input.cuda(non_blocking=True), gt.cuda(non_blocking=True), predict_input.cuda(non_blocking=True)
+                    input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
             
                 start_samp = time.time()
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
-            elif args.sampler_input == "gt":
+            elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 sample_out, bin_pred_map, pred_map = model.sampler(input=gt, sampler_from=gt)
             elif args.sampler_input == 'predict_from_past':
                 sample_out, bin_pred_map, pred_map = model.sampler(input=predict_input, sampler_from=gt)
             else:
                 raise ValueError('input to Sampler is not valid')
 
-                ### try
-                # new = torch.zeros(sample_out.shape).cuda()
-                # new[sample_out!= 0]= 1
-                # grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
-                # flat_grade_piexel = grade_pixel.view(-1)
-                # hight_indexes = torch.topk(flat_grade_piexel, 2400)[1]
-                # sample_out_new=torch.zeros(sample_out.view(-1).shape)
-                # sample_out_new[hight_indexes]= 1
-                # sample_out_new = sample_out_new.view(256,1216)
-                # sample_out = sample_out* sample_out_new.cuda()
-                # print(torch.count_nonzero(sample_out))
-                # #####
+            # ### try
+            _,_,H,W = sample_out.shape
+
+            # if torch.count_nonzero(sample_out).item() > 19000 :
+            #     new = torch.zeros(sample_out.shape).cuda()
+            #     new[sample_out!= 0]= 1
+            #     grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
+            #     flat_grade_piexel = grade_pixel.view(-1)
+            #     hight_indexes = torch.topk(flat_grade_piexel, 19000)[1]
+            #     sample_out_new=torch.zeros(sample_out.view(-1).shape)
+            #     sample_out_new[hight_indexes]= 1
+            #     sample_out_new = sample_out_new.view(H,W)
+            #     sample_out = sample_out* sample_out_new.cuda()
+            
+            # else: 
+            #     delta= 19000-torch.count_nonzero(sample_out).item()
+            #     sample_out_new2=torch.zeros(sample_out.view(-1).shape)
+            #     new2 = torch.zeros(sample_out.shape).cuda()
+            #     new2[sample_out == 0]= 1
+            #     grade_pixel2 = bin_pred_map[:,0,:,:]*new2.cuda()
+            #     flat_grade_piexel2 = grade_pixel2.view(-1)
+            #     hight_indexes2 = torch.topk(flat_grade_piexel2, 19000, largest= False)[1]
+            #     sample_out_new2[hight_indexes2]= 1
+            #     sample_out_new2 = sample_out_new2.view(H,W) 
+            #     mask= (sample_out.squeeze()==0)&(sample_out_new2.cuda()>0)
+
+            #     sample_out = sample_out +  gt*sample_out_new2.cuda()*mask
+            # print(torch.count_nonzero(sample_out))
+            # #####
                 
                 
                 
@@ -683,7 +711,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
             loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
 
-            loss_softarg =torch.zeros(1).cuda()
+            loss_softarg =torch.zeros(1).to(cuda_send)
             # loss_softarg = model.sampler.module.get_softargmax_loss()
             
     
@@ -705,9 +733,16 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 file_name= name[0][name[0].rfind('/'):]
                 if not os.path.exists(base_path+folder):
                     os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
+            if i%100 ==0: 
+                if args.plot_paper: 
+                    if args.sampler_input =='gt':
+                        plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction )
+                    else: # predicted from the past
+                        plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
 
-            
+                    sceene_num +=1
+
             losses.update(total_loss.item(), input.size(0))
             task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
             samp_loss.update(loss_number_sampler.item(), input.size(0))
@@ -715,6 +750,13 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
+
+            ## added
+            # pred_next_frame_rmse = []
+            # metric1.calculate(predict_input, gt)
+            # dept_reconstruction_rmse.append(metric.get_metric(args.metric)) 
+            # pred_next_frame_rmse.append(metric1.get_metric(args.metric))
+
 
             if (i + 1) % args.print_freq == 0:
     

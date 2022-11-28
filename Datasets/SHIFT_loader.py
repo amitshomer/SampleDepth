@@ -76,7 +76,7 @@ class SHIFT_preprocessing(object):
                                     and file not in remove_list_depth]))
                 
                 
-    def prepare_dataset(self, past_inputs =0):
+    def prepare_dataset(self, past_inputs =0, plot_paper = False, sampler_input='gt'):
         self.get_paths(past_inputs = past_inputs)
         print(len(self.train_paths['lidar_in']))
         print(len(self.train_paths['img']))
@@ -84,9 +84,41 @@ class SHIFT_preprocessing(object):
         print(len(self.val_paths['lidar_in']))
         print(len(self.val_paths['img']))
         print(len(self.val_paths['gt']))
-        
 
+        if plot_paper: 
+            # if sampler_input =='gt':
+            #     indices = [5,1000,4500,9400,14300,16700,19110,20000,935,13900]
+            # else:
+            #     indices = [1,1000,4500,9400,14300,16700,19110,20000,935,13900]
 
+            list_img = [
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/0e0c-b33d/00000160_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/ef7b-f9c3/00000200_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/1ae5-2eb5/00000230_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/dfca-6637/00000080_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/2eb2-0deb/00000370_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/d4d7-ff2c/00000390_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8d04-4174/00000310_img_front.jpg',
+
+            ]
+            list_gt = [
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/0e0c-b33d/00000160_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/ef7b-f9c3/00000200_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/1ae5-2eb5/00000230_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/dfca-6637/00000080_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/2eb2-0deb/00000370_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/d4d7-ff2c/00000390_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8d04-4174/00000310_depth_front.png',
+            ]
+            self.val_paths['img'] = list_img
+            self.val_paths['gt'] = list_gt
+            print("plot_paper data")
     def compute_mean_std(self):
         nums = np.array([])
         means = np.array([])

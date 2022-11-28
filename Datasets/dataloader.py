@@ -64,7 +64,7 @@ def get_loader(args, dataset, past_inputs = 0, past_input_path =''):
         pin_memory=True, drop_last=True)
     val_loader = DataLoader(
         val_dataset, batch_size=int(args.val_batch_size),  sampler=val_sampler,
-        shuffle=val_sampler is None, num_workers=args.nworkers_val,
+        shuffle=False, num_workers=args.nworkers_val,
         pin_memory=True, drop_last=True)
     if args.dataset == 'kitti':
         val_selection_loader = DataLoader(
@@ -203,7 +203,7 @@ class Dataset_loader(Dataset):
             img_tensor = img_tensor*255.0
             input = torch.cat((input, img_tensor), dim=0)
         
-        if self.past_inputs != 0 and self.sampler_input != 'predict_from_past':
+        if (self.past_inputs != 0 and self.sampler_input != 'predict_from_past') or self.sampler_input=='pseudo_gt':
             ## right now only support t-1 past input
             if self.dataset =='SHIFT':
                 full_file_path = self.dataset_type[self.gt_name][idx]
@@ -242,34 +242,94 @@ class Dataset_loader(Dataset):
                         raise Exception("No past data .npz file in {0}".format(past_data_path))
             
             else: # kitti dataset
-                full_file_path = self.dataset_type[self.gt_name][idx]
-            
+                full_file_path = self.dataset_type[self.img_name][idx]
+                file_name = full_file_path[full_file_path.rfind('/'):]
+                file_index = str(int(file_name[1: file_name.find('.png')])).rjust(10,'0')
+                base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_sample/'
+                if not self.sampler_input=='pseudo_gt':
+                    # past_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
+                    for i in range(1, self.past_inputs+1):
+                        file_index = str(int(file_name[1: file_name.find('.png')])-i).rjust(10,'0')
+                        past_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind("data/")+5]+ file_index +".npz"
+                        if os.path.exists(past_data_path):
+                            # print(past_data_path)
+
+                            with np.load(past_data_path, allow_pickle=True) as data:
+                                past_depth = data['a'].squeeze()
+                                past_depth = self.totensor(past_depth).float()
+                                if i == 1:
+                                    past_depths= past_depth
+                                else:
+                                    past_depths = torch.cat((past_depths,past_depth),0)
+                        else: 
+                            raise Exception("No past data .npz file in {0}".format(past_data_path))
+
+                ### the gt is pseudo gt
+                file_name_pseudo_gt = full_file_path[full_file_path.rfind('/'):]
+                pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
+                if os.path.exists(past_pseudogt_data_path):
+                        # print(past_pseudogt_data_path)
+                        with np.load(past_pseudogt_data_path, allow_pickle=True) as data:
+                            gt = data['a'].squeeze()
+                            gt = self.totensor(gt).float()
             # TODO - delete
-            name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
-        
+            if self.dataset == 'SHIFT':
+                name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
+            else:
+                name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('Data') +5:self.dataset_type[self.img_name][idx].rfind('.png')]        
             
-            return input, gt, past_depths, name
+            if self.sampler_input =='predict_from_past' or self.sampler_input =='None':
+                return input, gt, past_depths, name
+            
+            elif self.sampler_input =='pseudo_gt':
+                return input, gt, name
+            else:
+                past_depths = ''
+                return input, gt, past_depths
         
         elif self.past_inputs != 0 and self.sampler_input == 'predict_from_past':
-            full_file_path = self.dataset_type[self.gt_name][idx]
-            val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
-            file_name = full_file_path[full_file_path.rfind('/'):]
-            
-            file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
-            sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
-            indices_base_path = '/datadrive/SHIFT/pred_intime_depthmaps/'
-            predict_input = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
-            
-            if os.path.exists(predict_input):
-                with np.load(predict_input, allow_pickle=True) as data:
-                    tensor_predict_input = data['a'].squeeze()
-                    tensor_predict_input = self.totensor(tensor_predict_input).float()
+            if self.dataset =='SHIFT':
+                full_file_path = self.dataset_type[self.gt_name][idx]
+                val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
+                file_name = full_file_path[full_file_path.rfind('/'):]
+                
+                file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
+                sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
+                indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_intime_depthmaps/'
+                # predict_input = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
+                predict_input = indices_base_path  + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
 
-            return input, gt, tensor_predict_input
+                if os.path.exists(predict_input):
+                    with np.load(predict_input, allow_pickle=True) as data:
+                        tensor_predict_input = data['a'].squeeze()
+                        tensor_predict_input = self.totensor(tensor_predict_input).float()
+                else: 
+                    raise Exception("No past data .npz file in {0}".format(predict_input))
 
+                return input, gt, tensor_predict_input
+            else:
+                full_file_path = self.dataset_type[self.img_name][idx]
+                base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
+                past_sample_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
+                if os.path.exists(past_sample_data_path):
+                        # print(past_pseudogt_data_path)
+                        with np.load(past_sample_data_path, allow_pickle=True) as data:
+                            predict_input = data['a'].squeeze()
+                            predict_input = self.totensor(predict_input).float()
+                else: 
+                    raise Exception("No past data .npz file in {0}".format(past_sample_data_path))
 
+                pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
+                if os.path.exists(past_pseudogt_data_path):
+                        # print(past_pseudogt_data_path)
+                        with np.load(past_pseudogt_data_path, allow_pickle=True) as data:
+                            gt = data['a'].squeeze()
+                            gt = self.totensor(gt).float()
 
-        
+            return input, gt, predict_input
+                       
         else: 
             # TODO - delete
             if self.dataset == 'SHIFT':

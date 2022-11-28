@@ -141,7 +141,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[2,3])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,

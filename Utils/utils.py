@@ -25,6 +25,77 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib as npl
+from PIL import Image
+
+
+def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_depth_com = None):
+    sceene = "to_pap_{0}".format(sceene_num)
+    general_path= "/data/ashomer/project/SampleDepth/visual/{0}/".format(sceene )
+    if not os.path.exists(general_path):
+        os.makedirs(general_path)
+    
+    ##### save gt map
+    if pred_next_fame is not None:
+        pred_nepred_depth_com_i =pred_depth_com.squeeze().detach().cpu().numpy() 
+        pred_nepred_depth_com_i = convert_depth_to_rgb(pred_nepred_depth_com_i)
+        im = Image.fromarray(pred_nepred_depth_com_i)
+        path = general_path +'depth_comp_pred_last_stage.png'
+        im = im.convert("RGB")
+        im.save(path)
+        
+        pred_next_fame_i=pred_next_fame.squeeze().detach().cpu().numpy() 
+        pred_next_fame_i = convert_depth_to_rgb(pred_next_fame_i)
+        im = Image.fromarray(pred_next_fame_i)
+        path = general_path +'pred_next.png'
+        im = im.convert("RGB")
+        im.save(path)
+        
+        gt_i=gt.squeeze().detach().cpu().numpy() 
+        gt_i = convert_depth_to_rgb(gt_i)
+        im = Image.fromarray(gt_i)
+        path = general_path +'gt.png'
+        im = im.convert("RGB")
+        im.save(path)
+        
+        ##### sample_out gt 
+        sample_map_i= gt_i.copy()
+        sample_map_i[sample_map.squeeze().detach().cpu().numpy()==0] = 0
+        im = Image.fromarray(sample_map_i)
+        path = general_path +'sample_pred_next.png'
+        im = im.convert("RGB")
+        im.save(path) 
+        
+    else:    
+
+                
+        pred_nepred_depth_com_i =pred_depth_com.squeeze().detach().cpu().numpy() 
+        pred_nepred_depth_com_i = convert_depth_to_rgb(pred_nepred_depth_com_i)
+        im = Image.fromarray(pred_nepred_depth_com_i)
+        path = general_path +'depth_comp_pred.png'
+        im = im.convert("RGB")
+        im.save(path)
+
+        gt_i=gt.squeeze().detach().cpu().numpy() 
+        gt_i = convert_depth_to_rgb(gt_i)
+        im = Image.fromarray(gt_i)
+        path = general_path +'gt.png'
+        im = im.convert("RGB")
+        im.save(path)
+
+        ##### RGB
+        rgb_im=rgb.squeeze().permute(1,2,0).detach().cpu().numpy() 
+        im = Image.fromarray(rgb_im.astype('uint8')).convert('RGB')
+        path =general_path + 'rgb.png'
+        im.save(path)
+
+        ##### sample_out gt 
+        sample_map_i= gt_i.copy()
+        sample_map_i[sample_map.squeeze().detach().cpu().numpy()==0] = 0
+        im = Image.fromarray(sample_map_i)
+        path = general_path +'sample_gt.png'
+        im = im.convert("RGB")
+        im.save(path)
+
 
 def convert_depth_to_rgb(input):
     # vmax = np.percentile(input,85)      

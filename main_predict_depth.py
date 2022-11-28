@@ -104,7 +104,7 @@ parser.add_argument('--model_type', type=str, default='Unet', help='Unet/SimVP')
 base_dir_project= '/data/ashomer/project'
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save/'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images/.format(base_dir_project)'.format(base_dir_project), help='path to SHIFT dataset')
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images/'.format(base_dir_project).format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument('--past_input_path', default='{0}/SHIFT_dataset/sample/'.format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
 
@@ -144,7 +144,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -215,7 +215,9 @@ def main():
 
     ## Define the sampler
     if args.model_type == 'Unet':
-        predNet = PredNet(n_sample = args.n_sample, in_channels = args.past_inputs)
+        # predNet = PredNet(n_sample = args.n_sample, in_channels = args.past_inputs)        
+        predNet = PredNet(n_sample = args.n_sample, in_channels = 4)
+
         print("PredNet define based on Unet")    
     elif args.model_type == 'SimVP':
         predNet = SimVP(shape_in= [args.past_inputs, 1, 400, 640 ]) # SHIFT dataset
@@ -334,10 +336,12 @@ def main():
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
        
         if  args.dataset == 'kitti' :
-            validate(valid_selection_loader, predNet, args)
-        else: 
-            # validate(valid_loader, predNet,l1_loss, args)
+            validate(valid_loader, predNet,l1_loss, args)
             validate(train_loader, predNet,l1_loss, args)
+
+        else: 
+            validate(valid_loader, predNet,l1_loss, args)
+            # validate(train_loader, predNet,l1_loss, args)
 
             
         return
@@ -509,7 +513,7 @@ def main():
         # print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
-        if args.subset is None and args.dataset == 'kitti':
+        if args.subset is None and args.dataset == 'kitti' and args.past_inputs == 0:
             print("=> Start selection validation set")
             score_selection, score_selection_1, losses_selection  = validate(valid_selection_loader, l1_loss, args, epoch)
             total_score = score_selection
@@ -592,7 +596,7 @@ def validate(loader, model, l1_loss, args, epoch=0):
             total_loss = l1_loss(depth_pred, gt)
 
             if args.save_pred: 
-                base_path = '/datadrive/SHIFT/pred_intime_depthmaps/train/'
+                base_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
                 folder = name[0][:name[0].rfind('/')]
                 file_name= name[0][name[0].rfind('/'):]
                 if not os.path.exists(base_path+folder):

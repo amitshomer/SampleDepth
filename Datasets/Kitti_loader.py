@@ -56,31 +56,17 @@ class Kitti_preprocessing(object):
 
     def get_paths(self, past_inputs = 0):
         # train and validation dirs
-        
+        # 0000000005
         if past_inputs == 0:
-            remove_list_rgb = []
-            remove_list_depth = []
-
+            remove_list = []
         elif past_inputs == 1:
-            remove_list_rgb = ['00000000_img_front.jpg']
-            remove_list_depth = ['00000000_depth_front.png']
-
+            remove_list = ['0000000005.png']
         elif past_inputs == 2: 
-            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg']
-            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png' ]
-        
+             remove_list = ['0000000005.png','0000000006.png']
         elif past_inputs == 3: 
-            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg']
-            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png' ]
-        
+             remove_list = ['0000000005.png','0000000006.png','0000000007.png']
         elif past_inputs == 4: 
-            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg']
-            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png' ]
-        
-        elif past_inputs == 5: 
-            remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg','00000040_img_front.jpg']
-            remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png','00000040_depth_front.png' ]
-        
+             remove_list = ['0000000005.png','0000000006.png','0000000007.png','0000000008.png']
         
         for type_set in os.listdir(self.dataset_path):
             for root, dirs, files in os.walk(os.path.join(self.dataset_path, type_set)):
@@ -88,19 +74,23 @@ class Kitti_preprocessing(object):
                     self.train_paths['lidar_in'].extend(sorted([os.path.join(root, file) for file in files
                                                         if re.search('velodyne_raw', root)
                                                         and re.search('train', root)
-                                                        and re.search(self.side_selection, root)]))
+                                                        and re.search(self.side_selection, root)
+                                                        and file not in remove_list]))
                     self.val_paths['lidar_in'].extend(sorted([os.path.join(root, file) for file in files
                                                               if re.search('velodyne_raw', root)
                                                               and re.search('val', root)
-                                                              and re.search(self.side_selection, root)]))
+                                                              and re.search(self.side_selection, root)
+                                                              and file not in remove_list]))
                     self.train_paths['gt'].extend(sorted([os.path.join(root, file) for file in files
                                                           if re.search('groundtruth', root)
                                                           and re.search('train', root)
-                                                          and re.search(self.side_selection, root)]))
+                                                          and re.search(self.side_selection, root)
+                                                          and file not in remove_list]))
                     self.val_paths['gt'].extend(sorted([os.path.join(root, file) for file in files
                                                         if re.search('groundtruth', root)
                                                         and re.search('val', root)
-                                                        and re.search(self.side_selection, root)]))
+                                                        and re.search(self.side_selection, root)
+                                                        and file not in remove_list]))
         for idx, pathes in enumerate(self.train_paths['lidar_in']):
             #print(idx)
             lidar_file = pathes.replace("proj_depth/velodyne_raw/", "").replace('image_02/','image_02/data/').replace('image_03/','image_03/data/')
@@ -178,7 +168,7 @@ class Kitti_preprocessing(object):
             files.append(os.path.join(self.dataset_path, os.path.join(selection, file)))
         return files
 
-    def prepare_dataset(self, past_inputs =0):
+    def prepare_dataset(self, past_inputs =0, plot_paper=False, sampler_input = None ):
         path_to_val_sel = 'depth_selection/val_selection_cropped'
         path_to_test = 'depth_selection/test_depth_completion_anonymous'
         self.get_paths( past_inputs=past_inputs)
@@ -197,8 +187,51 @@ class Kitti_preprocessing(object):
             #     self.train_paths['lidar_in'].append(self.train_paths['lidar_in'][0])
             #     self.train_paths['gt'].append(self.train_paths['gt'][0])
             #     self.train_paths['img'].append(self.train_paths['img'][0])
+            for folder in ['image_02','image_03']:
+                if past_inputs == 1:
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))           
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000181.png'.format(folder))
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000181.png'.format(folder))
 
-            
+                
+                elif past_inputs == 2: 
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png')
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png')
+                            
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png')
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png')
+                    
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png')
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png')
+                elif past_inputs == 3: 
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png')
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png')
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000183.png')
+                                    
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png')
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png')
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000183.png')
+                    
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png')
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png')
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000183.png')
+                elif past_inputs == 4: 
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000182.png'.format(folder))
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000183.png'.format(folder))
+                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000184.png'.format(folder))
+                    
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000181.png'.format(folder))
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000182.png'.format(folder))
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000183.png'.format(folder))
+                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000184.png'.format(folder))
+                    
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000181.png'.format(folder))
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000182.png'.format(folder))
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000183.png'.format(folder))
+                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000184.png'.format(folder))
+
+
             print(len(self.train_paths['lidar_in']))
             print(len(self.train_paths['img']))
             print(len(self.train_paths['gt']))

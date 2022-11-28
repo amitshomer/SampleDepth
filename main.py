@@ -45,7 +45,7 @@ parser.add_argument('--evaluate', action='store_true', help='only evaluate')
 parser.add_argument('--resume', type=str, default='', help='resume latest saved run number')
 parser.add_argument("--resume_bool", type=str2bool, nargs='?', const=True, default=False, help="True to start train from resume number")
 parser.add_argument('--nworkers', type=int, default=8, help='num of threads')
-parser.add_argument('--nworkers_val', type=int, default=0, help='num of threads')
+parser.add_argument('--nworkers_val', type=int, default=8, help='num of threads')
 parser.add_argument('--no_dropout', action='store_true', help='no dropout in network')
 parser.add_argument('--subset', type=int, default=None, help='Take subset of train set')
 parser.add_argument('--input_type', type=str, default='rgb', choices=['depth','rgb'], help='use rgb for rgbdepth')
@@ -69,7 +69,7 @@ parser.add_argument("--rescale", type=str2bool, nargs='?', const=True,
                     default=False, help="Rescale values of sparse depth input randomly")
 parser.add_argument("--normal", type=str2bool, nargs='?', const=True, default=False, help="normalize depth/rgb input")
 parser.add_argument("--no_aug", type=str2bool, nargs='?', const=True, default=False, help="rotate image")
-parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
+parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/pseudo_gt')
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
 parser.add_argument('--sample_ratio', default=2, type=int, help='Sample ration from the Lidar inputs')
 parser.add_argument('--sample_factor_type', type=str, default='ratio', help='ratio/n_points/None')
@@ -112,7 +112,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -339,7 +339,7 @@ def main():
             
             if args.sampler_input == "sparse_input":
                 input = input
-            elif args.sampler_input == "gt":
+            elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 input[:,0,:,:] = gt.squeeze()
             else:
                 raise ValueError('input to Sampler is not valid')
@@ -394,7 +394,6 @@ def main():
                        epoch+1, i+1, len(train_loader), batch_time=batch_time,
                        loss=losses,
                        score=score_train))
-
         avg_point_per_image = np.mean(list_n_pooints)
 
         print("===> Average RMSE score on training set is {:.4f}".format(score_train.avg))
@@ -409,7 +408,7 @@ def main():
         print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
-        if args.subset is None and args.dataset == 'kitti':
+        if args.subset is None and args.dataset == 'kitti' and not args.sampler_input == 'pseudo_gt':
             print("=> Start selection validation set")
             score_selection, score_selection_1, losses_selection, avg_point_per_image_sel = validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, epoch)
             total_score = score_selection
@@ -468,7 +467,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             
             if args.sampler_input == "sparse_input":
                 input = input
-            elif args.sampler_input == "gt":
+            elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 input[:,0,:,:] = gt.squeeze()
             else:
                 raise ValueError('input to Sampler is not valid')
@@ -501,7 +500,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 file_name= name[0][name[0].rfind('/'):]
                 if not os.path.exists(base_path+folder):
                     os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy())
+                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
 
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
