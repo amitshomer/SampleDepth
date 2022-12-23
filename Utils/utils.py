@@ -35,7 +35,7 @@ def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_de
         os.makedirs(general_path)
     
     ##### save gt map
-    if pred_next_fame is not None:
+    if torch.is_tensor(pred_next_fame):
         pred_nepred_depth_com_i =pred_depth_com.squeeze().detach().cpu().numpy() 
         pred_nepred_depth_com_i = convert_depth_to_rgb(pred_nepred_depth_com_i)
         im = Image.fromarray(pred_nepred_depth_com_i)
@@ -105,11 +105,11 @@ def convert_depth_to_rgb(input):
     return color_im
 
 
-def sample_random(depth, ratio, n_sample, sample_factor_type, batch_size):
+def sample_random(depth, ratio, n_sample, sample_factor_type, batch_size, cuda_send='cuda:0'):
     torch.seed()
 
     mask_keep = depth > 0
-    depth_sampled = torch.zeros(depth.shape).cuda()
+    depth_sampled = torch.zeros(depth.shape).to(cuda_send)
     # prob = float(self.num_samples) / n_keep
     
     if sample_factor_type =='ratio':
@@ -117,7 +117,7 @@ def sample_random(depth, ratio, n_sample, sample_factor_type, batch_size):
     elif sample_factor_type == 'n_points':
         prob = (batch_size*n_sample)/torch.count_nonzero(depth)
 
-    mask_keep =  torch.bitwise_and(mask_keep, torch.rand(depth.shape).cuda() < prob)
+    mask_keep =  torch.bitwise_and(mask_keep, torch.rand(depth.shape).to(cuda_send) < prob)
     depth_sampled[mask_keep] = depth[mask_keep]
     return depth_sampled
 

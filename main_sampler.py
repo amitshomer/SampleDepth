@@ -199,16 +199,21 @@ def main():
         task_model.requires_grad_(False)
         task_model.eval().to(cuda_send)
     else:
-
+        # if args.sampler_input == 'rgb':
+        #     task_model.requires_grad_(False)
+        #     task_model.eval().to(cuda_send)
+        # else:
         task_model.requires_grad_(True)
         task_model.train().to(cuda_send)
 
     ## Define the sampler
     if args.sampler_type == 'SampleDepth':
-        sampler = SampleDepth(n_sample = args.n_sample)
+        #sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1 if args.sampler_input != 'rgb' else 3)
+        sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1)
+
         print("Sampler: SampleDepth")
     elif args.sampler_type == 'global_mask':
-        sampler = Global_mask(batch_size = args.batch_size, multi = args.multi)
+        sampler = Global_mask(batch_size = args.batch_size, multi = args.multi, dataset=args.dataset)
         print("Sampler: Global_mask")
 
     else:
@@ -239,19 +244,22 @@ def main():
         # task_model.sampler.requires_grad_(True)
         # task_model.sampler.train()
     # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
+    if args.sampler_input == 'rgb':
+        task_model.sampler.module.down_blocks[0].conv1 = nn.Conv2d(3, 32, kernel_size=(3,3), stride=(1,1), padding=(1,1)).to(cuda_send)
+
     learnable_params = [x for x in task_model.parameters() if x.requires_grad]
 
     # INIT optimizer/scheduler/loss criterion
     optimizer = define_optim(args.optimizer, learnable_params, args.learning_rate, args.weight_decay)
     scheduler = define_scheduler(optimizer, args)
 
-    save_id = '{}_{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}'.\
+    save_id = '{}_{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}_aplpha{}_beta{}'.\
             format(args.mod, args.optimizer, args.loss_criterion,
                     args.learning_rate,
                     args.input_type, 
                     args.batch_size,
                     args.pretrained, args.wlid, args.wrgb, args.wguide, args.wpred, 
-                    args.lr_decay_iters, args.n_sample, args.multi)
+                    args.lr_decay_iters, args.n_sample, args.multi, args.alpha, args.beta)
 
 
     # Optional to use different losses
@@ -407,7 +415,6 @@ def main():
         # Train model for args.nepochs
         if args.fine_tune:
             task_model.train() 
-
         else:
             task_model.eval()
         task_model.sampler.train()
@@ -422,19 +429,33 @@ def main():
             data_time.update(time.time() - end)
 
             # Put inputs on gpu if possible
-            if not args.no_cuda:
-                if args.sampler_input =='pseudo_gt':
-                    input, gt = input.to(cuda_send), gt.to(cuda_send)
-                else:
-                    input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
-            
+            # if not args.no_cuda:
+            #     if args.sampler_input =='pseudo_gt':
+            #         input, gt = input.to(cuda_send), gt.to(cuda_send)
+            #     else:
+            #         input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
+            if isinstance(predict_input, list):
+                input, gt = input.to(cuda_send), gt.to(cuda_send)
+                name = predict_input
+            else:
+                input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
+
             # Sample augmantion from sparse input (lidar)
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
+            
             elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
-                sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
+                if args.sampler_type =='SampleDepth':
+                    sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
+                elif args.sampler_type == 'global_mask':
+                    sample_out, bin_pred_map, pred_map = task_model.sampler(sampler_from=gt)
+
             elif args.sampler_input == 'predict_from_past':
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input=predict_input, sampler_from=gt)
+            
+            elif args.sampler_input == 'rgb':
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input=input[:,1:4,:,:].detach(), sampler_from=gt)
+
             else:
                 raise ValueError('input to Sampler is not valid')
 
@@ -442,7 +463,7 @@ def main():
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
             if args.sampler_type == 'global_mask':
-                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
+                list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.001).item()/args.batch_size)
             else:
                 list_n_pooints.append(torch.count_nonzero(sample_out[:,0,:,:]).item()/args.batch_size)
 
@@ -465,18 +486,14 @@ def main():
 
             # total loss
             # total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
-            if args.sampler_type == 'global_mask':
-                # loss_choice = torch.abs((torch.sum(sample_out[:,0,:,:]>0.0001)/args.batch_size)-args.n_sample)/args.n_sample
-                loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample
-                #loss_choice = torch.abs((sample_out[:,0,:,:].sum()/args.batch_size)-args.n_sample)/args.n_sample
-                
+            if args.sampler_type == 'global_mask' and args.dataset =='kitti':
+                loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample                
                 loss_choice_scalar = loss_choice.item()
                 choice_loss.update(loss_choice_scalar, input.size(0))
-
                 total_loss = 1* loss_task +  1* loss_number_sampler + 0 * loss_softarg +1* loss_choice #TODO - change hard coded
 
 
-            else: # SampleDepth
+            else: # SampleDepth or GlobalMask in SHIFT dataset
                 loss_choice_scalar = None
                 total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
 
@@ -640,10 +657,18 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 start_samp = time.time()
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
+           
             elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
-                sample_out, bin_pred_map, pred_map = model.sampler(input=gt, sampler_from=gt)
+                if args.sampler_type =='SampleDepth':
+                    sample_out, bin_pred_map, pred_map = model.sampler(input=gt, sampler_from=gt)
+                elif args.sampler_type == 'global_mask':
+                    sample_out, bin_pred_map, pred_map = model.sampler(sampler_from=gt)
+
             elif args.sampler_input == 'predict_from_past':
                 sample_out, bin_pred_map, pred_map = model.sampler(input=predict_input, sampler_from=gt)
+            
+            elif args.sampler_input == 'rgb':
+                sample_out, bin_pred_map, pred_map = model.sampler(input=input[:,1:4,:,:], sampler_from=gt)
             else:
                 raise ValueError('input to Sampler is not valid')
 
@@ -734,12 +759,12 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 if not os.path.exists(base_path+folder):
                     os.makedirs(base_path+folder)
                 np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
-            if i%100 ==0: 
-                if args.plot_paper: 
-                    if args.sampler_input =='gt':
-                        plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction )
-                    else: # predicted from the past
-                        plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
+            #if i%100 ==0: 
+            if args.plot_paper: 
+                if args.sampler_input =='gt':
+                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction )
+                else: # predicted from the past
+                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
 
                     sceene_num +=1
 

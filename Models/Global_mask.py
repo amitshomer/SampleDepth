@@ -4,7 +4,7 @@ import numpy as np
 from .SampleDepth import Softargmax2d
 
 class Global_mask(nn.Module):
-    def __init__(self, batch_size, multi):
+    def __init__(self, batch_size, multi, dataset):
         super().__init__()
         # if multi:
         #     first_layer = torch.zeros(int(batch_size/2.0), 1, 256, 1216)
@@ -14,12 +14,19 @@ class Global_mask(nn.Module):
         #     sec_layer = torch.ones(int(batch_size), 1, 256, 1216)
 
         # self._global_mask = torch.nn.Parameter(torch.cat(( torch.rand(int(batch_size/2.0), 1, 256, 1216), torch.rand(int(batch_size/2.0), 1, 256, 1216)), dim = 1))
+        if dataset =="SHIFT":
+            H=400
+            W=640
+        else: # Kitti dataset
+            H=256
+            W=1216
+
         if multi and batch_size>1:
-            w = torch.empty(int(batch_size/2),1,256, 1216)
-            u= torch.empty(int(batch_size/2),1,256, 1216)
+            w = torch.empty(int(batch_size/2),1,H, W)
+            u= torch.empty(int(batch_size/2),1,H, W)
         else:
-            w = torch.empty(batch_size,1,256, 1216)
-            u= torch.empty(batch_size,1,256, 1216)
+            w = torch.empty(batch_size,1,H, W)
+            u= torch.empty(batch_size,1,H, W)
 
 
 
@@ -43,13 +50,13 @@ class Global_mask(nn.Module):
         
         self.softargmax = Softargmax2d(initial_temperature = 0.0001)
     
-    def forward(self, input: torch.tensor):
+    def forward(self, sampler_from: torch.tensor):
         # global_maks_relu = torch.clamp(self.relu(self._global_mask),0,1)
         global_maks_relu = self.softargmax(self.soft_max(self._global_mask)).unsqueeze(dim=1)
 
         # two_layer_mask = (self.soft_max(self._global_mask))
         # layer_mask = self.softargmax(two_layer_mask).unsqueeze(dim=1)
-        sample_out = global_maks_relu * input
+        sample_out = global_maks_relu * sampler_from
 
         return sample_out, None , global_maks_relu
 
