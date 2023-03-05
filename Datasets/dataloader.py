@@ -107,6 +107,7 @@ class Dataset_loader(Dataset):
         self.img_name = 'img'
         self.lidar_name = 'lidar_in' 
         self.gt_name = 'gt' 
+        self.seg_name = 'seg'
 
         # Define random sampler
         self.num_samples = num_samples
@@ -119,11 +120,11 @@ class Dataset_loader(Dataset):
         return len(self.dataset_type['gt'])
 
 
-    def define_transforms(self, input, gt, img=None):
+    def define_transforms(self, input, gt, img=None, seg=None):
         # Define random variabels
         hflip_input = np.random.uniform(0.0, 1.0) > 0.5 and self.flip == 'hflip'
 
-        if self.train:
+        if self.train: #right now transformation not supporeted in SHIFT dataset
             i, j, h, w = transforms.RandomCrop.get_params(input, output_size=self.crop)
             input = F.crop(input, i, j, h, w)
             gt = F.crop(gt, i, j, h, w)
@@ -139,8 +140,6 @@ class Dataset_loader(Dataset):
         else:
             if self.dataset =='kitti':
                 input, gt = self.center_crop(input), self.center_crop(gt)
-            # else:
-            #     gt = self.center_crop(gt)
             
             if self.use_rgb and self.dataset =='kitti':
                 img = self.center_crop(img)
@@ -148,14 +147,18 @@ class Dataset_loader(Dataset):
             if self.dataset =='kitti':
                 input, gt = depth_read(input, self.sparse_val, dataset = 'kitti'), depth_read(gt, self.sparse_val, dataset = 'kitti')
             else: 
+                # depth read
                 gt = depth_read(gt, self.sparse_val, dataset = 'SHIFT',max_depth =self.max_depth)
                 # make input like LiDAR unfirom pattern
                 input = np.zeros_like(gt)
-                input[::13,::4] = 1
+                input[::7,::2] = 1
                 input = input * gt  
-            
 
-        return input, gt, img
+                #seg read - right now transformation not supporeted in SHIFT dataset
+                if seg != None:
+                    seg = np.array(seg, dtype=int)
+
+        return input, gt, img, seg
 
     def __getitem__(self, idx):
         """
@@ -181,11 +184,11 @@ class Dataset_loader(Dataset):
                 gt = (Image.open(f).convert('RGB'))
                 w, h = gt.size
                 gt = F.crop(gt, h-self.crop[0], 0, self.crop[0], w)
-                # gt = gt.resize((600, 400), Image.LANCZOS) # TODO- change hard coded
-
+                
 
 
         img = None
+        # RGB load
         if self.use_rgb:
             img_name = self.dataset_type[self.img_name][idx]
             with open(img_name, 'rb') as f:
@@ -193,10 +196,22 @@ class Dataset_loader(Dataset):
 
             img = F.crop(img, h-self.crop[0], 0, self.crop[0], w)
             if self.dataset == 'SHIFT':
-                img = img.resize((640, 400),Image.LANCZOS) # TODO- change hard coded
-
-        sparse_depth_np, gt_np, img_pil = self.define_transforms(sparse_depth, gt, img)
+                img = img.resize((640, 400),Image.LANCZOS) 
+      
+        # segmantion load 
+        if self.dataset == 'SHIFT':
+            seg_name = self.dataset_type[self.seg_name][idx]
+            with open(seg_name, 'rb') as f:
+                seg = (Image.open(f).convert('RGB'))
+            seg = seg.resize((640, 400),Image.NEAREST) 
+        else:
+            seg = None # not supported yet
+        # trasmormation
+        sparse_depth_np, gt_np, img_pil, seg = self.define_transforms(sparse_depth, gt, img, seg)
         input, gt = self.totensor(sparse_depth_np).float(), self.totensor(gt_np).float()
+        
+        if seg is not None:
+            seg = self.totensor(seg[:,:,0]).float()
 
         if self.use_rgb:
             img_tensor = self.totensor(img_pil).float()
@@ -283,7 +298,8 @@ class Dataset_loader(Dataset):
                 return input, gt, past_depths, name
             
             elif self.sampler_input =='pseudo_gt':
-                return input, gt, name
+                seg = 'empty'
+                return input, gt, name, seg
             else:
                 past_depths = ''
                 return input, gt, past_depths
@@ -327,8 +343,9 @@ class Dataset_loader(Dataset):
                         with np.load(past_pseudogt_data_path, allow_pickle=True) as data:
                             gt = data['a'].squeeze()
                             gt = self.totensor(gt).float()
+                seg = 'empty'
 
-            return input, gt, predict_input
+            return input, gt, predict_input, seg
                        
         else: 
             # TODO - delete
@@ -336,4 +353,5 @@ class Dataset_loader(Dataset):
                 name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('front') +6:self.dataset_type[self.img_name][idx].rfind('.jpg')]
             else:
                 name = self.dataset_type[self.img_name][idx][self.dataset_type[self.img_name][idx].find('Data') +5:self.dataset_type[self.img_name][idx].rfind('.png')]
-            return input, gt, name
+                seg = 'empty'
+            return input, gt, name, seg

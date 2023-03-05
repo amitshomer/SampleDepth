@@ -215,6 +215,7 @@ class Kitti_preprocessing(object):
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png')
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png')
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000183.png')
+                
                 elif past_inputs == 4: 
                     self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))
                     self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000182.png'.format(folder))
@@ -230,6 +231,8 @@ class Kitti_preprocessing(object):
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000182.png'.format(folder))
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000183.png'.format(folder))
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000184.png'.format(folder))
+                elif past_inputs > 4 : 
+                    raise Exception("KITTI - Not supporeted right now more than 4 past frames")
 
 
             print(len(self.train_paths['lidar_in']))
@@ -240,8 +243,7 @@ class Kitti_preprocessing(object):
             print(len(self.val_paths['gt']))
             print(len(self.test_files['lidar_in']))
             print(len(self.test_files['img']))
-        
-
+   
 
     def compute_mean_std(self):
         nums = np.array([])

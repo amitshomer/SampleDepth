@@ -122,7 +122,7 @@
             "justMyCode": true
         },
         {
-        "name": "main_sampler",
+        "name": "main_sampler_past_gt",
         "type": "python",
         "request": "launch",
         "program": "main_sampler.py",
@@ -130,30 +130,33 @@
         "justMyCode": true,
         "args": [
             "--batch_size",
-            "1",
+            "9",
             "--nworkers",
-            "16",
+            "8",
             "--multi",
             "True",
             "--sampler_input",
             "predict_from_past",
             "--n_sample",
-            "19000",
+            "4096",
             "--learning_rate",
-            "0.0001",
+            "0.0002",
             "--past_inputs",
             "4",
             "--alpha",
-            "0.2",
+            "1",
             "--beta",
             "5",
             "--print_freq",
             "20",
+            "--gpu_device",
+            "1",
+            "2",
+            "3",
             "--fine_tune",
             "true",
             "--finetune_path",
-            "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/kitti_pseudo_gt_19K_finetune/mod_adam_mse_0.0001_rgb_batch8_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience5_num_samples19000_multiTrue/model_best_epoch_10.pth.tar"
-
+            "/data/ashomer/project/SampleDepth/checkpoints/general_save/SHAI_pseudo_PRedNet_4096/model_best_epoch_0.pth.tar"
             
         ]
         },
@@ -173,9 +176,9 @@
                 "True",
                 "--evaluate",
                 "--eval_path",
-                "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SR1_a02_b10_input_gt_seq2_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience2_num_samples19000_multiTrue/model_best_epoch_5.pth.tar",
+                "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SR2_a02_b10_input_gt_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samples9600_multiTrue/model_best_epoch_6.pth.tar",
                 "--n_sample",
-                "19000",
+                "1024",
                 "--alpha",
                 "0.1",
                 "--beta",
@@ -260,7 +263,7 @@
                         "--fine_tune",
                         "True",
                         "--finetune_path",
-                        "/home/amitshomer/Documents/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar"
+                        "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar"
                     ]
                     },
                     {
@@ -300,7 +303,7 @@
                             "--past_inputs",
                             "0",
                             "--plot_paper",
-                            "False",
+                            "True",
                             "--evaluate",
                             "--eval_path",
                             "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar"
@@ -449,7 +452,7 @@
                                     ]
                                     },
                                     {
-                                        "name": "global_mask_SHIFT",
+                                        "name": "global_mask",
                                         "type": "python",
                                         "request": "launch",
                                         "program": "main_sampler.py",
@@ -458,10 +461,12 @@
                                         "args": [
                                             "--batch_size",
                                             "1",
+                                            "--nepochs",
+                                            "300",
                                             "--nworkers",
                                             "8",
                                             "--dataset",
-                                            "SHIFT",
+                                            "kitti",
                                             "--multi",
                                             "True",
                                             "--sampler_input",
@@ -469,15 +474,15 @@
                                             "--sampler_type",
                                             "global_mask",
                                             "--n_sample",
-                                            "19000",           
+                                            "14700",           
                                             "--lr_policy",
                                             "step",
                                             "--lr_decay_iters",
                                             "10",
                                             "--print_freq",
-                                            "1000",
+                                            "200",
                                             "--learning_rate",
-                                            "0.0001",
+                                            "0.05",
                                             "--alpha",
                                             "0.1",
                                             "--beta",
@@ -487,12 +492,13 @@
                                             "--gpu_device",
                                             "0",
                                             "--task_weight",
-                                            "/data/ashomer/project/SampleDepth/checkpoints/task_checkpoint/SHIFT_19000_random/mod_adam_mse_0.008_rgb_batch20_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience6_num_samplesNone_multiTrue_SR_2/model_best_epoch_25.pth.tar"
+                                            "/data/ashomer/project/SampleDepth/checkpoints/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar"
+
                                         ]
                                         },
 
                                         {
-                                            "name": "main_sampler_SHIFT_RGB_quide",
+                                            "name": "main_sampler_SHIFT_seg_quide",
                                             "type": "python",
                                             "request": "launch",
                                             "program": "main_sampler.py",
@@ -500,7 +506,7 @@
                                             "justMyCode": true,
                                             "args": [
                                                 "--batch_size",
-                                                "8",
+                                                "9",
                                                 "--nworkers",
                                                 "8",
                                                 "--dataset",
@@ -508,7 +514,7 @@
                                                 "--multi",
                                                 "True",
                                                 "--sampler_input",
-                                                "rgb",
+                                                "seg",
                                                 "--sampler_type",
                                                 "SampleDepth",
                                                 "--n_sample",
@@ -520,19 +526,19 @@
                                                 "--print_freq",
                                                 "200",
                                                 "--learning_rate",
-                                                "0.00005",
+                                                "0.001",
                                                 "--alpha",
                                                 "0.1",
                                                 "--beta",
                                                 "10",
                                                 "--gpu_device",
-                                                "0",
                                                 "1",
+                                                "2",
+                                                "3",
                                                 "--fine_tune",
                                                 "True",
                                                 "--finetune_path",
-                                                "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar"
-                                                
+                                                "/data/ashomer/project/SampleDepth/checkpoints/general_save/rgb_and_seg/model_best_epoch_17.pth.tar"
 
                                             ]
                                             },
@@ -547,13 +553,13 @@
                                                     "--batch_size",
                                                     "1",
                                                     "--nworkers",
-                                                    "8",
+                                                    "0",
                                                     "--dataset",
                                                     "SHIFT",
                                                     "--multi",
                                                     "True",
                                                     "--sampler_input",
-                                                    "rgb",
+                                                    "seg",
                                                     "--sampler_type",
                                                     "SampleDepth",
                                                     "--n_sample",
@@ -576,9 +582,9 @@
                                                     "False",
                                                     "--evaluate",
                                                     "--eval_path",
-                                                    "/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_RGB_quide_finetune_19k/model_best_epoch_18.pth.tar",
+                                                    "/data/ashomer/project/SampleDepth/checkpoints/general_save/mod_adam_mse_0.0001_rgb_batch8_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience3_num_samples19000_multiTrue_aplpha0.2_beta1/model_best_epoch_2.pth.tar",
                                                     "--plot_paper",
-                                                    "True"
+                                                    "False"
                                                 ]
                                                 },
                                                 {
@@ -606,7 +612,7 @@
                                                         "--print_freq",
                                                         "20",
                                                         "--gpu_device",
-                                                        "3",
+                                                        "0",
                                                         "--plot_paper",
                                                         "False",
                                                         "--evaluate",

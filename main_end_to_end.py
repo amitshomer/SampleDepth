@@ -343,9 +343,13 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
     seq_list =[]
     all_seq_list =[]
     # Only forward pass, hence no grads needed
+    # ablation 
+    rand_hist = torch.zeros(18)
+    samp_hist = torch.zeros(18)
+
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt, predict_input) in tqdm(enumerate(loader)):
+        for i, (input, gt, predict_input,_) in tqdm(enumerate(loader)):
      
             if not args.no_cuda:
                 if isinstance(predict_input, list):
@@ -358,8 +362,7 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
             
             current_frame_name = predict_input[0][predict_input[0].find('/')+1:]
             # Random sampling for 4 first frames
-            # if current_frame_name in first_frames:
-            if True: 
+            if current_frame_name in first_frames:
                 # new sequence - Reset the memory
                 if current_frame_name == '00000000_img_front': 
                     past_reconstruct =[]
@@ -377,6 +380,16 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
                 sample_out, bin_pred_map, pred_map = task_SampleDepth.sampler(input=depth_pred, sampler_from=gt)
                 sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
                 prediction, lidar_out, precise, guide = task_SampleDepth(sample_input, epoch)
+
+                
+
+                if len(seq_list)> 25:
+                    samp_hist+=torch.histc(sample_out, bins=18, min=0.01, max=85).detach().cpu()
+                rand_samp= sample_random(gt.squeeze() , ratio = None, n_sample = args.n_sample, sample_factor_type ='n_points', batch_size = args.batch_size, cuda_send= cuda_send)
+                rand_hist+= torch.histc(rand_samp, bins=18, min=0.01, max=85).detach().cpu()
+                
+                # gt_full[gt_full>200] = 200
+                # gt_hist += torch.histc(gt_full, bins=1000, min=0.01, max=1000).detach().cpu()
             
             # Memory last predications
             if len(past_reconstruct) == 4:

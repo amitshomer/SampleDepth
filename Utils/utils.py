@@ -28,7 +28,7 @@ import matplotlib as npl
 from PIL import Image
 
 
-def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_depth_com = None):
+def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_depth_com = None, lidar=None):
     sceene = "to_pap_{0}".format(sceene_num)
     general_path= "/data/ashomer/project/SampleDepth/visual/{0}/".format(sceene )
     if not os.path.exists(general_path):
@@ -67,32 +67,48 @@ def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_de
         
     else:    
 
-                
+        start = 0
+        end = -1
         pred_nepred_depth_com_i =pred_depth_com.squeeze().detach().cpu().numpy() 
         pred_nepred_depth_com_i = convert_depth_to_rgb(pred_nepred_depth_com_i)
-        im = Image.fromarray(pred_nepred_depth_com_i)
+        im = Image.fromarray(pred_nepred_depth_com_i[:,start:end,:])
         path = general_path +'depth_comp_pred.png'
         im = im.convert("RGB")
         im.save(path)
 
         gt_i=gt.squeeze().detach().cpu().numpy() 
         gt_i = convert_depth_to_rgb(gt_i)
-        im = Image.fromarray(gt_i)
+        im = Image.fromarray(gt_i[:,start:end,:])
         path = general_path +'gt.png'
         im = im.convert("RGB")
         im.save(path)
 
         ##### RGB
-        rgb_im=rgb.squeeze().permute(1,2,0).detach().cpu().numpy() 
+        rgb_im=rgb.squeeze().permute(1,2,0).detach().cpu().numpy()[:,start:end,:]
         im = Image.fromarray(rgb_im.astype('uint8')).convert('RGB')
         path =general_path + 'rgb.png'
         im.save(path)
 
         ##### sample_out gt 
         sample_map_i= gt_i.copy()
-        sample_map_i[sample_map.squeeze().detach().cpu().numpy()==0] = 0
-        im = Image.fromarray(sample_map_i)
+        sample_map_i[sample_map.squeeze().detach().cpu().numpy()==0] = (255,255,255)
+        im = Image.fromarray(sample_map_i[:,start:end,:])
         path = general_path +'sample_gt.png'
+        im = im.convert("RGB")
+        im.save(path)
+
+        rand_sampler = sample_random(gt[:,0,:,:] ,1,19000, 'n_points', 1)
+        sample_map_r= gt_i.copy()
+        sample_map_r[rand_sampler.squeeze().detach().cpu().numpy()==0] = (255,255,255)
+        im = Image.fromarray(sample_map_r[:,start:end,:])
+        path = general_path +'sample_gt_rand.png'
+        im = im.convert("RGB")
+        im.save(path)
+
+        sample_map_l= gt_i.copy()
+        sample_map_l[lidar.squeeze().detach().cpu().numpy()==0] = (255,255,255)
+        im = Image.fromarray(sample_map_l[:,start:end,:])
+        path = general_path +'sample_gt_lidar.png'
         im = im.convert("RGB")
         im.save(path)
 

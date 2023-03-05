@@ -404,9 +404,9 @@ class SampleDepth_intime(nn.Module):
 
     def forward(self, past_input: torch.tensor, gt: torch.tensor):
         encoder_output = []
-
+        #past_input: torch.tensor, gt: torch.tensor
         ## U-Net part
-        x = past_input
+  
         # Encoder pathway
         for module in self.down_blocks:
             x, before_pooling = module(x)

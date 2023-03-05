@@ -80,8 +80,7 @@ parser.add_argument('--sample_method', type=str, default='random', help='random/
 base_dir_project= '/data/ashomer/project'
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth//Data/'.format(base_dir_project), help='path to desired dataset')
-parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_datset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
-
+parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument('--erfnet_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/erfnet_pretrained.pth'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
@@ -328,7 +327,7 @@ def main():
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt,_) in tqdm(enumerate(train_loader)):
+        for i, (input, gt,_, _) in tqdm(enumerate(train_loader)):
 
             # Time dataloader
             data_time.update(time.time() - end)
@@ -461,7 +460,7 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     # Only forward pass, hence no grads needed
     with torch.no_grad():
         # end = time.time()
-        for i, (input, gt, name) in tqdm(enumerate(loader)):
+        for i, (input, gt, name,_) in tqdm(enumerate(loader)):
             if not args.no_cuda:
                 input, gt = input.to(cuda_send), gt.to(cuda_send)
             

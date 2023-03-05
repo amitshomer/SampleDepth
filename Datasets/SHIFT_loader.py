@@ -22,8 +22,8 @@ attention:
 
 class SHIFT_preprocessing(object):
     def __init__(self, dataset_path, input_type='depth', side_selection=''):
-        self.train_paths = {'img': [], 'lidar_in': [], 'gt': []}
-        self.val_paths = {'img': [], 'lidar_in': [], 'gt': []}
+        self.train_paths = {'img': [], 'lidar_in': [], 'gt': [], 'seg':[]}
+        self.val_paths = {'img': [], 'lidar_in': [], 'gt': [], 'seg':[]}
         self.dataset_path = dataset_path
         self.use_rgb = True
 
@@ -32,26 +32,34 @@ class SHIFT_preprocessing(object):
         if past_inputs == 0:
             remove_list_rgb = []
             remove_list_depth = []
+            remove_list_seg = []
 
         elif past_inputs == 1:
             remove_list_rgb = ['00000000_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png']
+            remove_list_seg = ['00000000_semseg_front.png']
 
         elif past_inputs == 2: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png' ]
-        
+            remove_list_seg = ['00000000_semseg_front.png', '00000010_semseg_front.png']
+
         elif past_inputs == 3: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png' ]
-        
+            remove_list_seg = ['00000000_semseg_front.png','00000010_semseg_front.png','00000020_semseg_front.png' ]
+
         elif past_inputs == 4: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png' ]
-        
+            remove_list_seg = ['00000000_semseg_front.png','00000010_semseg_front.png','00000020_semseg_front.png','00000030_semseg_front.png' ]
+
         elif past_inputs == 5: 
             remove_list_rgb = ['00000000_img_front.jpg','00000010_img_front.jpg','00000020_img_front.jpg','00000030_img_front.jpg','00000040_img_front.jpg']
             remove_list_depth = ['00000000_depth_front.png','00000010_depth_front.png','00000020_depth_front.png','00000030_depth_front.png','00000040_depth_front.png' ]
+            remove_list_seg = ['00000000_semseg_front.png','00000010_semseg_front.png','00000020_semseg_front.png','00000030_semseg_front.png','00000040_semseg_front.png' ]
+        elif past_inputs > 5 : 
+            raise Exception("SHIFT- Not supporeted right now more than 5 past frames")
 
         for type_set in os.listdir(self.dataset_path):
             for root, dirs, files in os.walk(os.path.join(self.dataset_path, type_set)):
@@ -62,8 +70,14 @@ class SHIFT_preprocessing(object):
                 
                 self.train_paths['gt'].extend(sorted([os.path.join(root, file) for file in files
                                     if re.search('png', file)
+                                    and re.search('depth', file)
                                     and re.search('train', root)
                                     and file not in remove_list_depth]))
+                self.train_paths['seg'].extend(sorted([os.path.join(root, file) for file in files
+                                    if re.search('png', file)
+                                    and re.search('semseg', file)
+                                    and re.search('train', root)
+                                    and file not in remove_list_seg]))                                  
                 
                 self.val_paths['img'].extend(sorted([os.path.join(root, file) for file in files
                                     if re.search('jpg', file)
@@ -72,9 +86,15 @@ class SHIFT_preprocessing(object):
                 
                 self.val_paths['gt'].extend(sorted([os.path.join(root, file) for file in files
                                     if re.search('png', file)
+                                    and re.search('depth', file)
                                     and re.search('val', root)
                                     and file not in remove_list_depth]))
-                
+
+                self.val_paths['seg'].extend(sorted([os.path.join(root, file) for file in files
+                                    if re.search('png', file)
+                                    and re.search('semseg', file)
+                                    and re.search('val', root)
+                                    and file not in remove_list_seg])) 
                 
     def prepare_dataset(self, past_inputs =0, plot_paper = False, sampler_input='gt'):
         self.get_paths(past_inputs = past_inputs)
@@ -86,12 +106,9 @@ class SHIFT_preprocessing(object):
         print(len(self.val_paths['gt']))
 
         if plot_paper: 
-            # if sampler_input =='gt':
-            #     indices = [5,1000,4500,9400,14300,16700,19110,20000,935,13900]
-            # else:
-            #     indices = [1,1000,4500,9400,14300,16700,19110,20000,935,13900]
-
             list_img = [
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/5a22-ce83/00000050_img_front.jpg',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/44c9-fa02/00000100_img_front.jpg',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_img_front.jpg',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_img_front.jpg',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_img_front.jpg',
@@ -105,6 +122,8 @@ class SHIFT_preprocessing(object):
 
             ]
             list_gt = [
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/5a22-ce83/00000050_depth_front.png',
+                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/44c9-fa02/00000100_depth_front.png',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_depth_front.png',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_depth_front.png',
                 '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_depth_front.png',
@@ -119,6 +138,8 @@ class SHIFT_preprocessing(object):
             self.val_paths['img'] = list_img
             self.val_paths['gt'] = list_gt
             print("plot_paper data")
+
+            
     def compute_mean_std(self):
         nums = np.array([])
         means = np.array([])

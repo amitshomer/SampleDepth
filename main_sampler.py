@@ -21,6 +21,8 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime
 from Models.SampleDepth import SampleDepth
+from Models.SampleDepth_intime import SampleDepth_intime
+
 from Models.Global_mask import Global_mask
 from Loss.loss import define_loss, allowed_losses, MSE_loss
 from Loss.benchmark_metrics import Metrics, allowed_metrics
@@ -102,9 +104,6 @@ base_dir_project= '/data/ashomer/project'
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
-
-#parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
-# parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
 parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/kitti_pseudoGT_random_19k/mod_adam_mse_0.002_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_12.pth.tar'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
@@ -137,7 +136,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0])
 
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
@@ -157,6 +156,7 @@ parser.add_argument('--local_rank', dest="local_rank", default=0, type=int)
 
 cuda_send = "cuda:{0}".format(str(parser.parse_args().gpu_device[0]))
 
+
 def main():
     global args
     args = parser.parse_args()
@@ -164,17 +164,6 @@ def main():
         args.num_samples = None
     if args.val_batch_size is None:
         args.val_batch_size = args.batch_size
-    # if args.seed:
-    #     random.seed(args.seed)
-    #     torch.manual_seed(args.seed)
-        # torch.backends.cudnn.deterministic = True
-        # warnings.warn('You have chosen to seed training. '
-                      # 'This will turn on the CUDNN deterministic setting, '
-                      # 'which can slow down your training considerably! '
-                      # 'You may see unexpected behavior when restarting from checkpoints.')
-
-    # For distributed training
-    # init_distributed_mode(args)
 
     if not args.no_cuda and not torch.cuda.is_available():
         raise Exception("No gpu available for usage")
@@ -184,32 +173,25 @@ def main():
     
     ## define task model on eval mode
     task_model = Models.define_model(mod=args.mod, in_channels=channels_in, thres=args.thres)
-        # Load on gpu before passing params to optimizer
+    
     if not args.no_cuda:
         if not args.multi:
             task_model = task_model.cuda()
         else:
             task_model = torch.nn.DataParallel(task_model, device_ids = args.gpu_device).to(cuda_send)
-            # model.cuda()
-            # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-            # model = model.module
+
     if not args.fine_tune:
         checkpoint = torch.load(args.task_weight)
         task_model.load_state_dict(checkpoint['state_dict'])
         task_model.requires_grad_(False)
         task_model.eval().to(cuda_send)
     else:
-        # if args.sampler_input == 'rgb':
-        #     task_model.requires_grad_(False)
-        #     task_model.eval().to(cuda_send)
-        # else:
         task_model.requires_grad_(True)
         task_model.train().to(cuda_send)
 
-    ## Define the sampler
+    # Define the sampler
     if args.sampler_type == 'SampleDepth':
-        #sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1 if args.sampler_input != 'rgb' else 3)
-        sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1)
+        sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1 if args.sampler_input != 'seg' else 4)
 
         print("Sampler: SampleDepth")
     elif args.sampler_type == 'global_mask':
@@ -230,7 +212,6 @@ def main():
     sampler.train()
 
     # Attach sampler to task_model
-
     task_model.sampler = sampler
 
     if args.fine_tune:
@@ -238,14 +219,6 @@ def main():
         print("Load wieght for task with sampler")
         checkpoint = torch.load(args.finetune_path)
         task_model.load_state_dict(checkpoint['state_dict'])
-        # #Added - need to delete
-        # task_model.requires_grad_(False)
-        # task_model.eval().cuda()
-        # task_model.sampler.requires_grad_(True)
-        # task_model.sampler.train()
-    # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
-    if args.sampler_input == 'rgb':
-        task_model.sampler.module.down_blocks[0].conv1 = nn.Conv2d(3, 32, kernel_size=(3,3), stride=(1,1), padding=(1,1)).to(cuda_send)
 
     learnable_params = [x for x in task_model.parameters() if x.requires_grad]
 
@@ -261,7 +234,6 @@ def main():
                     args.pretrained, args.wlid, args.wrgb, args.wguide, args.wpred, 
                     args.lr_decay_iters, args.n_sample, args.multi, args.alpha, args.beta)
 
-
     # Optional to use different losses
     criterion_local = define_loss(args.loss_criterion)
     criterion_lidar = define_loss(args.loss_criterion)
@@ -276,7 +248,6 @@ def main():
     
     dataset = Datasets.define_dataset(args.dataset, data_path, args.input_type, args.side_selection)
     dataset.prepare_dataset(past_inputs=args.past_inputs, plot_paper=args.plot_paper, sampler_input=args.sampler_input)
-    #dataset.prepare_dataset()
 
     train_loader, valid_loader, valid_selection_loader = get_loader(args, dataset, past_inputs=args.past_inputs)
 
@@ -311,7 +282,6 @@ def main():
     # Only evaluate
     if args.evaluate:
         print("Evaluate only")
-        # best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
         best_file_lst = []
         best_file_lst.append(args.eval_path)
         if len(best_file_lst) != 0:
@@ -330,12 +300,9 @@ def main():
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
             # validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            # validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
 
         else: 
             validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            # validate(train_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args) # TODO replace
-
         return
 
     # Start training from clean slate
@@ -351,40 +318,6 @@ def main():
     print("Number of parameters in task  model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in task_model.parameters())/1e6))
     print("Number of parameters in Sampler  model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in sampler.parameters())/1e6))
     print("Sample ration of: {0}".format(str(args.sample_ratio)))
-    
-    # Load pretrained state for cityscapes in GLOBAL net
-    # if args.pretrained and not args.resume:
-    #     if not args.load_external_mod:
-    #         if not args.multi:
-    #             target_state = model.depthnet.state_dict()
-    #         else:
-    #             target_state = model.module.depthnet.state_dict()
-    #         check = torch.load(args.erfnet_weight)
-    #         for name, val in check.items():
-    #             # Exclude multi GPU prefix
-    #             mono_name = name[7:] 
-    #             if mono_name not in target_state:
-    #                  continue
-    #             try:
-    #                 target_state[mono_name].copy_(val)
-    #             except RuntimeError:
-    #                 continue
-    #         print('Successfully loaded pretrained model')
-    #     else:
-    #         check = torch.load('external_mod.pth.tar')
-    #         lowest_loss_load = check['loss']
-    #         target_state = model.state_dict()
-    #         for name, val in check['state_dict'].items():
-    #             if name not in target_state:
-    #                 continue
-    #             try:
-    #                 target_state[name].copy_(val)
-    #             except RuntimeError:
-    #                 continue
-    #         print("=> loaded EXTERNAL checkpoint with best rmse {}"
-    #                 .format(lowest_loss_load))
-
-    # Start training
     print("Alpha factor: {0}".format(str(args.alpha)))
     print("Beta factor: {0}".format(str(args.beta)))
     print("Sampler input: {0}".format(args.sampler_input))
@@ -419,28 +352,34 @@ def main():
             task_model.eval()
         task_model.sampler.train()
 
+
         list_n_pooints =[]
         # compute timing
         end = time.time()
         flag_print = 0
         # Load dataset
-        for i, (input, gt, predict_input) in tqdm(enumerate(train_loader)):
+        for i, (input, gt, predict_input, seg) in tqdm(enumerate(train_loader)):
             # Time dataloader
             data_time.update(time.time() - end)
-
-            # Put inputs on gpu if possible
-            # if not args.no_cuda:
-            #     if args.sampler_input =='pseudo_gt':
-            #         input, gt = input.to(cuda_send), gt.to(cuda_send)
-            #     else:
-            #         input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
             if isinstance(predict_input, list):
-                input, gt = input.to(cuda_send), gt.to(cuda_send)
                 name = predict_input
             else:
-                input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
+                predict_input =  predict_input.to(cuda_send)
+            
+            if not isinstance(seg, list): 
+                seg = seg.to(cuda_send)
 
-            # Sample augmantion from sparse input (lidar)
+            input, gt =  input.to(cuda_send), gt.to(cuda_send)
+            
+            # if isinstance(predict_input, list) and isinstance(seg, list) :
+            #     input, gt = input.to(cuda_send), gt.to(cuda_send)
+            #     name = predict_input
+            # elif isinstance(predict_input, list):
+            #     input, gt, seg = input.to(cuda_send), gt.to(cuda_send), seg.to(cuda_send)
+            #     name = predict_input
+            # else:
+            #     input, gt, predict_input, seg = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send), seg.to(cuda_send)
+
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
             
@@ -455,6 +394,10 @@ def main():
             
             elif args.sampler_input == 'rgb':
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input=input[:,1:4,:,:].detach(), sampler_from=gt)
+            
+            elif args.sampler_input == 'seg':
+                sample_out, bin_pred_map, pred_map = task_model.sampler(input=torch.cat((seg, input[:,1:4,:,:].detach()), dim = 1), sampler_from=gt)
+
 
             else:
                 raise ValueError('input to Sampler is not valid')
@@ -486,11 +429,11 @@ def main():
 
             # total loss
             # total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
-            if args.sampler_type == 'global_mask' and args.dataset =='kitti':
+            if args.sampler_type == 'global_mask' and args.dataset =='kitti' and  args.sampler_input !="pseudo_gt" :
                 loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample                
                 loss_choice_scalar = loss_choice.item()
                 choice_loss.update(loss_choice_scalar, input.size(0))
-                total_loss = 1* loss_task +  1* loss_number_sampler + 0 * loss_softarg +1* loss_choice #TODO - change hard coded
+                total_loss = 1* loss_task +  10* loss_number_sampler + 0 * loss_softarg +10* loss_choice #TODO - change hard coded
 
 
             else: # SampleDepth or GlobalMask in SHIFT dataset
@@ -552,20 +495,21 @@ def main():
                 if args.sampler_type == 'global_mask':
                     print('Choice Loss {choice_loss.val:.4f} ({choice_loss.avg:.4f})'.format(choice_loss = choice_loss))
 
-            
-            
+            # # print('nnnn')
+            if i == 4000:
+                break
         avg_point_per_image = np.mean(list_n_pooints)
 
         print("===> Average RMSE score on training set is {:.4f}".format(score_train.avg))
         print("===> Average MAE score on training set is {:.4f}".format(score_train_1.avg))
         print("===> Average point per on training images {:.4f}".format(avg_point_per_image))
 
-        # # Evaulate model on validation set
-        print("=> Start validation set")
-        score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
-        print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
-        print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
-        print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
+        #Evaulate model on validation set
+        # print("=> Start validation set")
+        # score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+        # print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
+        # print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
+        # print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
         if args.subset is None and args.dataset == 'kitti' and ((not args.sampler_input == 'pseudo_gt') and (not args.sampler_input == 'predict_from_past')):
@@ -637,10 +581,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
     pred_next_frame_rmse = []
     dept_reconstruction_rmse = [ ] 
     sceene_num = 1
-    # Only forward pass, hence no grads needed
+
     with torch.no_grad():
-        # end = time.time()
-        for i, (input, gt, predict_input) in tqdm(enumerate(loader)):
+        for i, (input, gt, predict_input, seg) in tqdm(enumerate(loader)):
             # # to do- delete
             # base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/val/'
             # folder = name[0][:name[0].rfind('/')]
@@ -648,13 +591,18 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             # if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
             if not args.no_cuda:
+                input, gt = input.to(cuda_send), gt.to(cuda_send)
+
                 if isinstance(predict_input, list):
-                    input, gt = input.to(cuda_send), gt.to(cuda_send)
                     name = predict_input
                 else:
-                    input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
+                    predict_input = predict_input.to(cuda_send)
+                if not isinstance(seg, list):
+                    seg = seg.to(cuda_send)
             
                 start_samp = time.time()
+
+                
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
            
@@ -668,32 +616,41 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 sample_out, bin_pred_map, pred_map = model.sampler(input=predict_input, sampler_from=gt)
             
             elif args.sampler_input == 'rgb':
-                sample_out, bin_pred_map, pred_map = model.sampler(input=input[:,1:4,:,:], sampler_from=gt)
+                sample_out, bin_pred_map, pred_map = model.sampler(input=input[:,1:4,:,:].detach(), sampler_from=gt)
+
+            elif args.sampler_input == 'seg':
+                # sample_out, bin_pred_map, pred_map = model.sampler(input=seg, sampler_from=gt)
+                sample_out, bin_pred_map, pred_map = model.sampler(input=torch.cat((seg, input[:,1:4,:,:].detach()), dim = 1), sampler_from=gt)
+
             else:
                 raise ValueError('input to Sampler is not valid')
 
-            # ### try
-            _,_,H,W = sample_out.shape
+            # # # # ### try
+            # sample_out[sample_out[:,:,:,:]<0.1]=0            
+            # sample_out = sample_random(sample_out , None, 4300, 'n_points' , 1)
 
-            # if torch.count_nonzero(sample_out).item() > 19000 :
+            ### try
+            # _,_,H,W = sample_out.shape
+            # exect_number = 4096
+            # if torch.count_nonzero(sample_out).item() > exect_number :
             #     new = torch.zeros(sample_out.shape).cuda()
             #     new[sample_out!= 0]= 1
             #     grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
             #     flat_grade_piexel = grade_pixel.view(-1)
-            #     hight_indexes = torch.topk(flat_grade_piexel, 19000)[1]
+            #     hight_indexes = torch.topk(flat_grade_piexel, exect_number)[1]
             #     sample_out_new=torch.zeros(sample_out.view(-1).shape)
             #     sample_out_new[hight_indexes]= 1
             #     sample_out_new = sample_out_new.view(H,W)
             #     sample_out = sample_out* sample_out_new.cuda()
             
             # else: 
-            #     delta= 19000-torch.count_nonzero(sample_out).item()
+            #     delta= exect_number-torch.count_nonzero(sample_out).item()
             #     sample_out_new2=torch.zeros(sample_out.view(-1).shape)
             #     new2 = torch.zeros(sample_out.shape).cuda()
             #     new2[sample_out == 0]= 1
             #     grade_pixel2 = bin_pred_map[:,0,:,:]*new2.cuda()
             #     flat_grade_piexel2 = grade_pixel2.view(-1)
-            #     hight_indexes2 = torch.topk(flat_grade_piexel2, 19000, largest= False)[1]
+            #     hight_indexes2 = torch.topk(flat_grade_piexel2, exect_number, largest= False)[1]
             #     sample_out_new2[hight_indexes2]= 1
             #     sample_out_new2 = sample_out_new2.view(H,W) 
             #     mask= (sample_out.squeeze()==0)&(sample_out_new2.cuda()>0)
@@ -705,13 +662,10 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 
                 
             end_samp = time.time()
-            # sample_out, bin_pred_map, = model.sampler(gt)  
             time_list.append(end_samp - start_samp)
 
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
-            
-            # list_n_pooints.append(torch.count_nonzero(sample_input[:,0,:,:]).item()/args.batch_size)
-        
+                    
             if args.sampler_type == 'global_mask':
                 list_n_pooints.append(torch.sum(sample_out[:,0,:,:]>0.0001).item()/args.batch_size)
             else:
@@ -741,7 +695,6 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             
     
             # total loss
-        
             total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
             
             # if args.sampler_type == 'global_mask':
@@ -759,14 +712,13 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 if not os.path.exists(base_path+folder):
                     os.makedirs(base_path+folder)
                 np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
-            #if i%100 ==0: 
             if args.plot_paper: 
                 if args.sampler_input =='gt':
-                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction )
+                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction,lidar = input[:,0,:,:] )
                 else: # predicted from the past
                     plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
 
-                    sceene_num +=1
+                sceene_num +=1
 
             losses.update(total_loss.item(), input.size(0))
             task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
