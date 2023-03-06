@@ -107,39 +107,39 @@ class SHIFT_preprocessing(object):
 
         if plot_paper: 
             list_img = [
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/5a22-ce83/00000050_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/44c9-fa02/00000100_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/0e0c-b33d/00000160_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/ef7b-f9c3/00000200_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/1ae5-2eb5/00000230_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/dfca-6637/00000080_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/2eb2-0deb/00000370_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/d4d7-ff2c/00000390_img_front.jpg',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8d04-4174/00000310_img_front.jpg',
+                '{0}/val/front/5a22-ce83/00000050_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/44c9-fa02/00000100_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/4056-844f/00000050_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/8b25-a278/00000310_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/4a92-8eb3/00000120_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/0e0c-b33d/00000160_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/ef7b-f9c3/00000200_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/1ae5-2eb5/00000230_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/dfca-6637/00000080_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/2eb2-0deb/00000370_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/d4d7-ff2c/00000390_img_front.jpg'.format(self.dataset_path),
+                '{0}/val/front/8d04-4174/00000310_img_front.jpg'.format(self.dataset_path),
 
             ]
             list_gt = [
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/5a22-ce83/00000050_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/44c9-fa02/00000100_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4056-844f/00000050_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8b25-a278/00000310_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/4a92-8eb3/00000120_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/0e0c-b33d/00000160_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/ef7b-f9c3/00000200_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/1ae5-2eb5/00000230_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/dfca-6637/00000080_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/2eb2-0deb/00000370_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/d4d7-ff2c/00000390_depth_front.png',
-                '/data/ashomer/project/SHIFT_dataset/discrete/images/val/front/8d04-4174/00000310_depth_front.png',
+                '{0}/val/front/5a22-ce83/00000050_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/44c9-fa02/00000100_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/4056-844f/00000050_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/8b25-a278/00000310_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/4a92-8eb3/00000120_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/0e0c-b33d/00000160_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/ef7b-f9c3/00000200_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/1ae5-2eb5/00000230_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/dfca-6637/00000080_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/2eb2-0deb/00000370_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/d4d7-ff2c/00000390_depth_front.png'.format(self.dataset_path),
+                '{0}/val/front/8d04-4174/00000310_depth_front.png'.format(self.dataset_path),
             ]
             self.val_paths['img'] = list_img
             self.val_paths['gt'] = list_gt
             print("plot_paper data")
 
-            
+
     def compute_mean_std(self):
         nums = np.array([])
         means = np.array([])

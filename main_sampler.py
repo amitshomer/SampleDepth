@@ -30,7 +30,7 @@ from Datasets.dataloader import get_loader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from Utils.utils import plot_images, str2bool, define_optim, define_scheduler, \
                         Logger, AverageMeter, first_run, mkdir_if_missing, \
-                        define_init_weights, init_distributed_mode, sample_random
+                        define_init_weights, init_distributed_mode, sample_random, exact_sample
 
 cmap = plt.cm.jet
 
@@ -70,13 +70,12 @@ parser.add_argument('--dataset_name', type=str, default='kitti', help='kitti/SHI
 
 #Sampler
 parser.add_argument('--n_sample', type=int, default=19000, help='Number of sample point')
-parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
-parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
-parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
+parser.add_argument('--alpha', type=float, default=0.2, help='Loss-task network factor')
+parser.add_argument('--beta', type=int, default=10, help='Loss-sampler factor')
+parser.add_argument('--delta', type=int, default=10, help='Loss-spiecial factor fixed map(kitti sparse)')
 parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt/predict_from_past/pseudo_gt')
 parser.add_argument('--past_inputs', type=int, default=0, help='Number of past depths inputs which freated depth predictaion')
-
-
+parser.add_argument("--exact_eval", type=str2bool, nargs='?', const=False, default=False, help="")
 
 # Data augmentation settings
 parser.add_argument('--crop_w', type=int, default=1216, help='width of image after cropping')
@@ -108,7 +107,9 @@ parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_c
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
-
+parser.add_argument('--save_pred_path', default='None', help='path to desired pth to eval')
+parser.add_argument('--pseudo_kitti_path', default='None', help='path to pseudo KITTI folder')
+parser.add_argument('--prediction_folder', default='None', help='path to prediction folder')
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -299,7 +300,7 @@ def main():
        
         if  args.dataset == 'kitti' :
             validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-            # validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
+            validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
 
         else: 
             validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
@@ -370,15 +371,6 @@ def main():
                 seg = seg.to(cuda_send)
 
             input, gt =  input.to(cuda_send), gt.to(cuda_send)
-            
-            # if isinstance(predict_input, list) and isinstance(seg, list) :
-            #     input, gt = input.to(cuda_send), gt.to(cuda_send)
-            #     name = predict_input
-            # elif isinstance(predict_input, list):
-            #     input, gt, seg = input.to(cuda_send), gt.to(cuda_send), seg.to(cuda_send)
-            #     name = predict_input
-            # else:
-            #     input, gt, predict_input, seg = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send), seg.to(cuda_send)
 
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
@@ -397,7 +389,6 @@ def main():
             
             elif args.sampler_input == 'seg':
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input=torch.cat((seg, input[:,1:4,:,:].detach()), dim = 1), sampler_from=gt)
-
 
             else:
                 raise ValueError('input to Sampler is not valid')
@@ -421,38 +412,25 @@ def main():
             loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
             # Sampler loss
- 
-            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-
-            loss_softarg =torch.zeros(1).to(cuda_send)
-            # loss_softarg = task_model.sampler.module.get_softargmax_loss()
+            loss_number_sampler = task_model.sampler.module.sample_loss(pred_map, args.n_sample )
 
             # total loss
-            # total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
             if args.sampler_type == 'global_mask' and args.dataset =='kitti' and  args.sampler_input !="pseudo_gt" :
                 loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample                
                 loss_choice_scalar = loss_choice.item()
                 choice_loss.update(loss_choice_scalar, input.size(0))
-                total_loss = 1* loss_task +  10* loss_number_sampler + 0 * loss_softarg +10* loss_choice #TODO - change hard coded
+                total_loss = args.alpha* loss_task +  args.beta * loss_number_sampler +  +args.delta * loss_choice #TODO - change hard coded
 
 
             else: # SampleDepth or GlobalMask in SHIFT dataset
                 loss_choice_scalar = None
-                total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg
+                total_loss = args.alpha * loss_task + args.beta * loss_number_sampler 
 
-            
-            #     loss_global_mask = task_model.sampler.module.global_mask_loss()
-            #     total_loss = total_loss + loss_global_mask/200                
-            #     # total_loss = total_loss 
-
-            #     if i % 200 ==0 :
-            #         print("Loss global mask: {0} ".format(str(loss_global_mask.item())))
 
             if i % 500 ==0 :
-                print("Loss task: {0} , Loss number sample: {1}, Loss choice map: {2}, Loss softargmax: {3}, Total loss: {4}".format(str(loss_task.item()),
+                print("Loss task: {0} , Loss number sample: {1}, Loss choice map: {2}, Total loss: {3}".format(str(loss_task.item()),
                                                                                                         str(loss_number_sampler.item()),
                                                                                                         str(loss_choice_scalar),
-                                                                                                        str(loss_softarg.item()),
                                                                                                         str(total_loss.item()) ))
                 print("Number of sample lat iter: {0}".format(list_n_pooints[-1]))
             
@@ -495,9 +473,9 @@ def main():
                 if args.sampler_type == 'global_mask':
                     print('Choice Loss {choice_loss.val:.4f} ({choice_loss.avg:.4f})'.format(choice_loss = choice_loss))
 
-            # # print('nnnn')
-            if i == 4000:
-                break
+            # # # print('nnnn')
+            # if i == 4000:
+            #     break
         avg_point_per_image = np.mean(list_n_pooints)
 
         print("===> Average RMSE score on training set is {:.4f}".format(score_train.avg))
@@ -505,11 +483,11 @@ def main():
         print("===> Average point per on training images {:.4f}".format(avg_point_per_image))
 
         #Evaulate model on validation set
-        # print("=> Start validation set")
-        # score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
-        # print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
-        # print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
-        # print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
+        print("=> Start validation set")
+        score_valid, score_valid_1, losses_valid, avg_point_per_image_val, _ = validate(valid_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args, epoch)
+        print("===> Average RMSE score on validation set is {:.4f}".format(score_valid))
+        print("===> Average MAE score on validation set is {:.4f}".format(score_valid_1))
+        print("===> Average point per on validation images {:.4f}".format((avg_point_per_image_val)))
 
         # Evaluate model on selected validation set
         if args.subset is None and args.dataset == 'kitti' and ((not args.sampler_input == 'pseudo_gt') and (not args.sampler_input == 'predict_from_past')):
@@ -584,10 +562,6 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
     with torch.no_grad():
         for i, (input, gt, predict_input, seg) in tqdm(enumerate(loader)):
-            # # to do- delete
-            # base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/val/'
-            # folder = name[0][:name[0].rfind('/')]
-            # file_name= name[0][name[0].rfind('/'):]
 
             # if not os.path.exists(base_path + folder +"/"+ file_name+".npz"):
             if not args.no_cuda:
@@ -619,48 +593,14 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 sample_out, bin_pred_map, pred_map = model.sampler(input=input[:,1:4,:,:].detach(), sampler_from=gt)
 
             elif args.sampler_input == 'seg':
-                # sample_out, bin_pred_map, pred_map = model.sampler(input=seg, sampler_from=gt)
                 sample_out, bin_pred_map, pred_map = model.sampler(input=torch.cat((seg, input[:,1:4,:,:].detach()), dim = 1), sampler_from=gt)
 
             else:
                 raise ValueError('input to Sampler is not valid')
 
-            # # # # ### try
-            # sample_out[sample_out[:,:,:,:]<0.1]=0            
-            # sample_out = sample_random(sample_out , None, 4300, 'n_points' , 1)
-
-            ### try
-            # _,_,H,W = sample_out.shape
-            # exect_number = 4096
-            # if torch.count_nonzero(sample_out).item() > exect_number :
-            #     new = torch.zeros(sample_out.shape).cuda()
-            #     new[sample_out!= 0]= 1
-            #     grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
-            #     flat_grade_piexel = grade_pixel.view(-1)
-            #     hight_indexes = torch.topk(flat_grade_piexel, exect_number)[1]
-            #     sample_out_new=torch.zeros(sample_out.view(-1).shape)
-            #     sample_out_new[hight_indexes]= 1
-            #     sample_out_new = sample_out_new.view(H,W)
-            #     sample_out = sample_out* sample_out_new.cuda()
-            
-            # else: 
-            #     delta= exect_number-torch.count_nonzero(sample_out).item()
-            #     sample_out_new2=torch.zeros(sample_out.view(-1).shape)
-            #     new2 = torch.zeros(sample_out.shape).cuda()
-            #     new2[sample_out == 0]= 1
-            #     grade_pixel2 = bin_pred_map[:,0,:,:]*new2.cuda()
-            #     flat_grade_piexel2 = grade_pixel2.view(-1)
-            #     hight_indexes2 = torch.topk(flat_grade_piexel2, exect_number, largest= False)[1]
-            #     sample_out_new2[hight_indexes2]= 1
-            #     sample_out_new2 = sample_out_new2.view(H,W) 
-            #     mask= (sample_out.squeeze()==0)&(sample_out_new2.cuda()>0)
-
-            #     sample_out = sample_out +  gt*sample_out_new2.cuda()*mask
-            # print(torch.count_nonzero(sample_out))
-            # #####
-                
-                
-                
+            if args.exact_eval:
+                sample_out = exact_sample(exact_number=args.args.n_sample , bin_pred_map=bin_pred_map, sample_out=sample_out, gt=gt )
+       
             end_samp = time.time()
             time_list.append(end_samp - start_samp)
 
@@ -673,13 +613,6 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
 
             prediction, lidar_out, precise, guide = model(sample_input, epoch)
 
-            # save locally npz - TODO delete after 
-            # if not os.path.exists(base_path+folder):
-            #     os.makedirs(base_path+folder)
-            #     # mask= sample_out[0,0,:,:] > 0.001
-            #     # indices = mask.nonzero()
-            # np.savez_compressed(base_path + folder +"/"+ file_name , a=pred_map.type(torch.int).detach().cpu().numpy())  
-
             loss = criterion_local(prediction, gt, epoch)
             loss_lidar = criterion_lidar(lidar_out, gt, epoch)
             loss_rgb = criterion_rgb(precise, gt, epoch)
@@ -687,36 +620,26 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
             
             # Sampler loss
-            # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
-            loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
+            loss_number_sampler = model.sampler.module.sample_loss(pred_map, args.n_sample )
 
             loss_softarg =torch.zeros(1).to(cuda_send)
-            # loss_softarg = model.sampler.module.get_softargmax_loss()
-            
-    
+
             # total loss
-            total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
-            
-            # if args.sampler_type == 'global_mask':
-            #     loss_global_mask = model.sampler.module.global_mask_loss()
-            #     total_loss = total_loss + 0.2* loss_global_mask
-            # if i % 100 ==0 :
-            #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
-            #                                                                                             str(loss_number_sampler.item()),
-            #                                                                                             str(loss_softarg.item()),
-            #                                                                                             str(total_loss.item()) ))
+            total_loss = args.alpha * loss_task + args.beta * loss_number_sampler 
+
+
             if args.save_pred: 
-                base_path = '/data/ashomer/project/SampleDepth/Data/pred_sample/'
                 folder = name[0][:name[0].rfind('/')]
                 file_name= name[0][name[0].rfind('/'):]
-                if not os.path.exists(base_path+folder):
-                    os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
+                if not os.path.exists(args.save_pred_path+'/' +folder):
+                    os.makedirs(args.save_pred_path +'/'+folder)
+                np.savez_compressed(args.save_pred_path +'/'+ folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
+            
             if args.plot_paper: 
                 if args.sampler_input =='gt':
-                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction,lidar = input[:,0,:,:] )
+                    plot_images(saved_path = args.save_pred_path, rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction,lidar = input[:,0,:,:] )
                 else: # predicted from the past
-                    plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
+                    plot_images(saved_path = args.save_pred_path, rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_next_fame= predict_input,pred_depth_com =prediction )
 
                 sceene_num +=1
 
@@ -727,12 +650,6 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
-
-            ## added
-            # pred_next_frame_rmse = []
-            # metric1.calculate(predict_input, gt)
-            # dept_reconstruction_rmse.append(metric.get_metric(args.metric)) 
-            # pred_next_frame_rmse.append(metric1.get_metric(args.metric))
 
 
             if (i + 1) % args.print_freq == 0:

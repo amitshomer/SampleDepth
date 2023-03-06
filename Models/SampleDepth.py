@@ -431,23 +431,9 @@ class SampleDepth(nn.Module):
         d = {self.__class__.__name__: attributes}
         return f'{d}'
     
-    def sample_number_loss(self, bin_pred_mask):
-        b = bin_pred_mask.shape[0]
-        pred_mask = torch.argmax(bin_pred_mask, dim=1)
-        number_of_points = (torch.count_nonzero(pred_mask)/b)
-        
-        
-        out = torch.abs((number_of_points - self.n_sample))/self.n_sample # change the hard coded
-        return out
-    
-    def sample_number_loss_2(self, sample_out):
-        b = sample_out.shape[0]
-
-        batch_non_zero = torch.count_nonzero(sample_out)
-        mean_non_zero = batch_non_zero/b
-
-        out = torch.abs((mean_non_zero - self.n_sample)/ self.n_sample) # change the hard coded
-        return out
+    def sample_loss(self, pred_map, n_sample ):
+        batch_size = pred_map.size(0)
+        return torch.abs((pred_map.sum()/batch_size)-n_sample)/n_sample
     
     def get_softargmax_loss(self):
             sigma = self.softargmax.sigma()

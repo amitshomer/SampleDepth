@@ -74,7 +74,6 @@ parser.add_argument('--n_sample', type=int, default=19000, help='Number of sampl
 parser.add_argument('--alpha', type=float, default=0.2, help='Number of sample point')
 parser.add_argument('--beta', type=int, default=10, help='Number of sample point')
 parser.add_argument('--gama', type=int, default= 0, help='Number of sample point') # TODO delete
-# parser.add_argument('--sampler_input', type=str, default= 'sparse_input', help='sparse_input/gt')
 parser.add_argument('--past_inputs', type=int, default=1, help='Number of past depths inputs')
 
 
@@ -96,27 +95,18 @@ parser.add_argument('--sample_ratio', default=1, type=int, help='Sample ration f
 parser.add_argument("--fine_tune", type=str2bool, nargs='?', default=False, help="finetuning sampler and task togheter")
 parser.add_argument('--model_type', type=str, default='Unet', help='Unet/SimVP')
 
-
-
-
 # Paths settings
-#TODO - remove hard pathes
 base_dir_project= '/data/ashomer/project'
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save/'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images/'.format(base_dir_project).format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument('--past_input_path', default='{0}/SHIFT_dataset/sample/'.format(base_dir_project), help='path to SHIFT dataset')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
-
-
-
-#parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
-# parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-# parser.add_argument('--task_weight', default='/data/ashomer/project/SampleDepth/checkpoints/Sampler_save/SHIFT_19000_finetune/mod_adam_mse_0.0001_rgb_batch10_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience15_num_samples19000_multiTrue/model_best_epoch_0.pth.tar', help='path to desired dataset')
-
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
-
+parser.add_argument('--save_pred_path', default='None', help='path to desired pth to eval')
+parser.add_argument('--reconstructed_folder', default='None', help='path to reconstructed maps')
+parser.add_argument('--pseudo_kitti_path', default='None', help='path to pseudo KITTI folder')
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -144,7 +134,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -169,17 +159,7 @@ def main():
         args.num_samples = None
     if args.val_batch_size is None:
         args.val_batch_size = args.batch_size
-    # if args.seed:
-    #     random.seed(args.seed)
-    #     torch.manual_seed(args.seed)
-        # torch.backends.cudnn.deterministic = True
-        # warnings.warn('You have chosen to seed training. '
-                      # 'This will turn on the CUDNN deterministic setting, '
-                      # 'which can slow down your training considerably! '
-                      # 'You may see unexpected behavior when restarting from checkpoints.')
 
-    # For distributed training
-    # init_distributed_mode(args)
 
     if not args.no_cuda and not torch.cuda.is_available():
         raise Exception("No gpu available for usage")
@@ -187,36 +167,9 @@ def main():
     # Init model
     channels_in = 1 if args.input_type == 'depth' else 4
     
-    ## define task model on eval mode
-    # task_model = Models.define_model(mod=args.mod, in_channels=channels_in, thres=args.thres)
-        # Load on gpu before passing params to optimizer
-    # if not args.no_cuda:
-    #     if not args.multi:
-    #         task_model = task_model.to(cuda_send)
-    #     else:
-    #         task_model = torch.nn.DataParallel(task_model, device_ids = args.gpu_device).to(cuda_send)
-            # model.cuda()
-            # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-            # model = model.module
-    # if not args.fine_tune:
-        
-    #     checkpoint = torch.load(args.task_weight)
-    #     dic_to_load = checkpoint['state_dict']
-    #     dic_to_load = {k:v for k,v in dic_to_load.items() if not 'sampler' in k}
-    #     # task_model.load_state_dict(checkpoint['state_dict'])
-        
-    #     task_model.load_state_dict(dic_to_load)
-
-    #     task_model.requires_grad_(False)
-    #     task_model.eval().to(cuda_send)
-    # else:
-    #     task_model.requires_grad_(True)
-    #     task_model.train().to(cuda_send)
-
     ## Define the sampler
     if args.model_type == 'Unet':
-        # predNet = PredNet(n_sample = args.n_sample, in_channels = args.past_inputs)        
-        predNet = PredNet(n_sample = args.n_sample, in_channels = 4)
+        predNet = PredNet(n_sample = args.n_sample, in_channels = args.past_inputs)
 
         print("PredNet define based on Unet")    
     elif args.model_type == 'SimVP':
@@ -234,18 +187,6 @@ def main():
 
     predNet.requires_grad_(True)
     predNet.train()
-
-    # Attach sampler to task_model
-
-    # task_model.sampler = sampler
-
-    # if args.fine_tune:
-    #     print("## fine tuning task with sampler ###")
-    #     print("Load wieght for task with sampler")
-    #     checkpoint = torch.load(args.finetune_path)
-    #     task_model.load_state_dict(checkpoint['state_dict'])
-    
-    # learnable_params = filter(lambda p: p.requires_grad, classifier.parameters())
     learnable_params = [x for x in predNet.parameters() if x.requires_grad]
 
     # INIT optimizer/scheduler/loss criterion
@@ -260,13 +201,6 @@ def main():
                     args.pretrained, args.wlid, args.wrgb, args.wguide, args.wpred, 
                     args.lr_decay_iters, args.n_sample, args.multi,args.lr_decay_iters)
 
-
-    # Optional to use different losses
-    # criterion_local = define_loss(args.loss_criterion)
-    # criterion_lidar = define_loss(args.loss_criterion)
-    # criterion_rgb = define_loss(args.loss_criterion)
-    # criterion_guide = define_loss(args.loss_criterion)
-    # chamLoss = chamfer_2DDist()
     l1_loss = loss = nn.L1Loss()
 
     # INIT dataset
@@ -319,7 +253,6 @@ def main():
     # Only evaluate
     if args.evaluate:
         print("Evaluate only")
-        # best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
         best_file_lst = []
         best_file_lst.append(args.eval_path)
         if len(best_file_lst) != 0:
@@ -337,11 +270,9 @@ def main():
        
         if  args.dataset == 'kitti' :
             validate(valid_loader, predNet,l1_loss, args)
-            validate(train_loader, predNet,l1_loss, args)
 
         else: 
             validate(valid_loader, predNet,l1_loss, args)
-            # validate(train_loader, predNet,l1_loss, args)
 
             
         return
@@ -359,9 +290,7 @@ def main():
     print("Dataset : {}".format(args.dataset))
     print("Init model: '{}'".format(args.mod))
     print("Number of parameters in the model {} is {:.3f}M".format(args.mod.upper(), sum(tensor.numel() for tensor in predNet.parameters())/1e6))
-    # print("Sample ration of: {0}".format(str(args.sample_ratio)))
-    # print("Alpha factor: {0}".format(str(args.alpha)))
-    # print("Beta factor: {0}".format(str(args.beta)))
+
     print("LR : {}".format(optimizer.param_groups[0]['lr']))
 
     for epoch in range(args.start_epoch, args.nepochs):
@@ -379,20 +308,11 @@ def main():
         data_time = AverageMeter()
         losses = AverageMeter()
         task_loss = AverageMeter()
-        # samp_loss = AverageMeter()
-        # choice_loss = AverageMeter()
-        # chamfer_loss = AverageMeter()
-
 
         score_train = AverageMeter()
         score_train_1 = AverageMeter()
         metric_train = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
-
-        # Train model for args.nepochs
-        # if args.fine_tune:
-        #     task_model.train()
-        # else:
-        #     task_model.eval()
+        
         predNet.train()
 
         list_n_pooints =[]
@@ -408,67 +328,9 @@ def main():
             if not args.no_cuda:
                 input, gt, past_depth = input.to(cuda_send), gt.to(cuda_send), past_depth.to(cuda_send)
             
-
             depth_pred = predNet(past_depth)
-
-
-
             total_loss = l1_loss(depth_pred, gt)
-
-            ## task loss
-            # loss = criterion_local(prediction, gt)
-            # loss_lidar = criterion_lidar(lidar_out, gt)
-            # loss_rgb = criterion_rgb(precise, gt)
-            # loss_guide = criterion_guide(guide, gt)
-            # loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
-            
-            # Sampler loss
-            # loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-            # loss_softarg =torch.zeros(1).to(cuda_send)
-
-            #Chamfer be like loss
-            # chmfer_loss = l1_loss(indicies_current_predmap.to(cuda_send), pred_map)
-
-            # count = torch.zeros((1),requires_grad=True).to(cuda_send)
-            # for batch_i in range(indicies_current_predmap.shape[0]):
-            #     # mask_indc= sample_out[batch_i,0,:,:] > 0.001
-            #     indices_pred_map = mask_indc.nonzero().unsqueeze(0).type(torch.FloatTensor).to(cuda_send)
-            #     incdices_gt_map = indicies_current_predmap[batch_i,0,:int(indicies_current_predmap[0,:,-1,0].item())+1,:].unsqueeze(0).to(cuda_send)
-            #     dist1, dist2, _, _= chamLoss(indices_pred_map, incdices_gt_map)
-            #     chamfer_batch_lost = torch.mean(dist1) + torch.mean(dist2)
-            #     count += chamfer_batch_lost
-            # chmfer_loss = dist1
-
-            # if args.sampler_type == 'global_mask':
-            #     # loss_choice = torch.abs((torch.sum(sample_out[:,0,:,:]>0.0001)/args.batch_size)-args.n_sample)/args.n_sample
-            #     loss_choice = torch.sum((pred_map>0.001)&(gt==0))/args.n_sample
-            #     #loss_choice = torch.abs((sample_out[:,0,:,:].sum()/args.batch_size)-args.n_sample)/args.n_sample
-            #     loss_choice_scalar = loss_choice.item()
-            #     choice_loss.update(loss_choice_scalar, input.size(0))
-
-            #     total_loss = 1* loss_task +  1* loss_number_sampler + 0 * loss_softarg +1* loss_choice #TODO - change hard coded
-
-
-            # else: # SampleDepth
-            #     loss_choice_scalar = None
-            #     total_loss = args.alpha * loss_task + args.beta * loss_number_sampler + 0 * loss_softarg + chmfer_loss
-            #     # total_loss =  chmfer_loss
-
-            
-            #     loss_global_mask = task_model.sampler.module.global_mask_loss()
-            #     total_loss = total_loss + loss_global_mask/200                
-            #     # total_loss = total_loss 
-
-            #     if i % 200 ==0 :
-            #         print("Loss global mask: {0} ".format(str(loss_global_mask.item())))
-
-           
-            
             losses.update(total_loss.item(), input.size(0))
-            # task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
-            # samp_loss.update(loss_number_sampler.item(), input.size(0))
-            # chamfer_loss.update(chmfer_loss.item(), input.size(0))
-
 
             metric_train.calculate(depth_pred.detach(), gt.detach())
             score_train.update(metric_train.get_metric(args.metric), metric_train.num)
@@ -553,23 +415,15 @@ def main():
             'loss': lowest_loss,
             'optimizer': optimizer.state_dict()}, to_save, epoch)
 
-        # if args.sampler_type == 'global_mask':
-        #     print("Save .npz pred map")
-        #     numpy_to_save = pred_map.detach().cpu().numpy()
-        #     save_pred_path = os.path.join(args.save_path, 'pred_map_epoch_{0}.npz'.format(epoch))
-        #     np.savez(save_pred_path, name1 = numpy_to_save)
+
 
     if not args.no_tb:
         writer.close()
 
 
 def validate(loader, model, l1_loss, args, epoch=0):
-    # batch_time = AverageMeter()
     losses = AverageMeter()
-    # task_loss = AverageMeter()
-    # samp_loss = AverageMeter() 
     metric = Metrics(max_depth=args.max_depth, disp=args.use_disp, normal=args.normal)
-   
     score = AverageMeter()
     score_1 = AverageMeter()
     chamfer_loss = AverageMeter()
@@ -583,9 +437,6 @@ def validate(loader, model, l1_loss, args, epoch=0):
     with torch.no_grad():
         # end = time.time()
         for i, (input, gt, past_depth, name) in tqdm(enumerate(loader)):
-            
-            
-            
             if not args.no_cuda:
                 input, gt = input.to(cuda_send, non_blocking=True), gt.to(cuda_send, non_blocking=True)
                 past_depth = past_depth.to(cuda_send, non_blocking=True)
@@ -596,53 +447,20 @@ def validate(loader, model, l1_loss, args, epoch=0):
             total_loss = l1_loss(depth_pred, gt)
 
             if args.save_pred: 
-                base_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
+                base_path = args.save_pred_path
                 folder = name[0][:name[0].rfind('/')]
                 file_name= name[0][name[0].rfind('/'):]
                 if not os.path.exists(base_path+folder):
-                    os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=depth_pred.detach().cpu().numpy())
+                    os.makedirs(base_path+'/'+folder)
+                np.savez_compressed(base_path +'/'+ folder +"/"+ file_name , a=depth_pred.detach().cpu().numpy())
 
-            # loss = criterion_local(prediction, gt, epoch)
-            # loss_lidar = criterion_lidar(lidar_out, gt, epoch)
-            # loss_rgb = criterion_rgb(precise, gt, epoch)
-            # loss_guide = criterion_guide(guide, gt, epoch)
-            # loss_task = args.wpred*loss + args.wlid*loss_lidar + args.wrgb*loss_rgb + args.wguide*loss_guide
-            
-            # Sampler loss
-            # loss_number_sampler = model.sampler.module.sample_number_loss(bin_pred_map)
-            # loss_number_sampler = torch.abs((pred_map.sum()/args.batch_size)-args.n_sample)/args.n_sample
-
-            # semi chamfer loss
-            # chmfer_loss = l1_loss(indicies_current_predmap.to(cuda_send), pred_map)
- 
-
-            # loss_softarg =torch.zeros(1).to(cuda_send)
-            # loss_softarg = model.sampler.module.get_softargmax_loss()
-            
-    
-            # total loss
-        
-            # total_loss = 0.2 * loss_task + 1 * loss_number_sampler + 0 * loss_softarg
-            
-            # if args.sampler_type == 'global_mask':
-            #     loss_global_mask = model.sampler.module.global_mask_loss()
-            #     total_loss = total_loss + 0.2* loss_global_mask
-            # if i % 100 ==0 :
-            #     print("Loss task: {0} , Loss number sample:{1}, Loss softargmax {2}, Total loss: {3}".format(str(loss_task.item()),
-            #                                                                                             str(loss_number_sampler.item()),
-            #                                                                                             str(loss_softarg.item()),
-            #                                                                                             str(total_loss.item()) ))
-            
             
             losses.update(total_loss.item(), input.size(0))
-            # task_loss.update(loss_task.item(), input.size(0)) # TODO - cgeck size0 
-            # samp_loss.update(loss_number_sampler.item(), input.size(0))
+
 
             metric.calculate(depth_pred, gt)
             score.update(metric.get_metric(args.metric), metric.num)
             score_1.update(metric.get_metric(args.metric_1), metric.num)
-            # chamfer_loss.update(chmfer_loss.item(), input.size(0))
 
 
             if (i + 1) % args.print_freq == 0:

@@ -28,9 +28,9 @@ import matplotlib as npl
 from PIL import Image
 
 
-def plot_images(rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_depth_com = None, lidar=None):
+def plot_images(saved_path, rgb, gt, sample_map , sceene_num, pred_next_fame = None, pred_depth_com = None, lidar=None):
     sceene = "to_pap_{0}".format(sceene_num)
-    general_path= "/data/ashomer/project/SampleDepth/visual/{0}/".format(sceene )
+    general_path= saved_path+'/visual/{0}/'.format(sceene )
     if not os.path.exists(general_path):
         os.makedirs(general_path)
     
@@ -444,3 +444,30 @@ def init_distributed_mode(args):
     # Does not seem to work?
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
+
+def exact_sample(exact_number, bin_pred_map,sample_out, gt ):
+    _,_,H,W = sample_out.shape
+    if torch.count_nonzero(sample_out).item() > exact_number :
+        new = torch.zeros(sample_out.shape).cuda()
+        new[sample_out!= 0]= 1
+        grade_pixel = bin_pred_map[:,1,:,:]*new.cuda()
+        flat_grade_piexel = grade_pixel.view(-1)
+        hight_indexes = torch.topk(flat_grade_piexel, exact_number)[1]
+        sample_out_new=torch.zeros(sample_out.view(-1).shape)
+        sample_out_new[hight_indexes]= 1
+        sample_out_new = sample_out_new.view(H,W)
+        sample_out = sample_out* sample_out_new.cuda()
+    
+    else: 
+        delta= exact_number-torch.count_nonzero(sample_out).item()
+        sample_out_new2=torch.zeros(sample_out.view(-1).shape)
+        new2 = torch.zeros(sample_out.shape).cuda()
+        new2[sample_out == 0]= 1
+        grade_pixel2 = bin_pred_map[:,0,:,:]*new2.cuda()
+        flat_grade_piexel2 = grade_pixel2.view(-1)
+        hight_indexes2 = torch.topk(flat_grade_piexel2, exact_number, largest= False)[1]
+        sample_out_new2[hight_indexes2]= 1
+        sample_out_new2 = sample_out_new2.view(H,W) 
+        mask= (sample_out.squeeze()==0)&(sample_out_new2.cuda()>0)
+
+        sample_out = sample_out +  gt*sample_out_new2.cuda()*mask

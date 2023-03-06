@@ -29,7 +29,6 @@ from Utils.utils import str2bool, define_optim, define_scheduler, \
 
 # Training setttings
 parser = argparse.ArgumentParser(description='KITTI Depth Completion Task')
-# parser.add_argument('--dataset', type=str, default='kitti', choices=Datasets.allowed_datasets(), help='dataset to work with')
 parser.add_argument('--dataset', type=str, default='kitti', help='dataset to work with: kitti/SHIFT')
 
 parser.add_argument('--nepochs', type=int, default=30, help='Number of epochs for training')
@@ -84,6 +83,8 @@ parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/ima
 parser.add_argument('--erfnet_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/erfnet_pretrained.pth'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
+parser.add_argument('--save_pred_path', default='None', help='path to desired pth to eval')
+
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -137,14 +138,6 @@ def main():
     if args.seed:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
-        # torch.backends.cudnn.deterministic = True
-        # warnings.warn('You have chosen to seed training. '
-                      # 'This will turn on the CUDNN deterministic setting, '
-                      # 'which can slow down your training considerably! '
-                      # 'You may see unexpected behavior when restarting from checkpoints.')
-
-    # For distributed training
-    # init_distributed_mode(args)
 
     if not args.no_cuda and not torch.cuda.is_available():
         raise Exception("No gpu available for usage")
@@ -159,9 +152,7 @@ def main():
             model = model.to(cuda_send)
         else:
             model = torch.nn.DataParallel(model, device_ids = args.gpu_device).to(cuda_send)
-            # model.cuda()
-            # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-            # model = model.module
+
 
     save_id = '{}_{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}_SR_{}'.\
               format(args.mod, args.optimizer, args.loss_criterion,
@@ -241,8 +232,7 @@ def main():
             print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
         if  args.dataset == 'kitti' :
             validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
-            # validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
-            # validate(train_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
+            validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
 
         else: 
             validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
@@ -494,12 +484,11 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
             losses.update(loss.item(), input.size(0))
 
             if args.save_pred: 
-                base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
                 folder = name[0][:name[0].rfind('/')]
                 file_name= name[0][name[0].rfind('/'):]
-                if not os.path.exists(base_path+folder):
-                    os.makedirs(base_path+folder)
-                np.savez_compressed(base_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
+                if not os.path.exists(args.save_pred_path + folder):
+                    os.makedirs(args.save_pred_path + folder)
+                np.savez_compressed(args.save_pred_path + folder +"/"+ file_name , a=prediction.detach().cpu().numpy().astype(np.float16))
 
             metric.calculate(prediction[:, 0:1], gt)
             score.update(metric.get_metric(args.metric), metric.num)

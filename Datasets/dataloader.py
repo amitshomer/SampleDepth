@@ -33,20 +33,26 @@ def get_loader(args, dataset, past_inputs = 0, past_input_path =''):
             rotate=args.rotate, crop=crop_size, flip=args.flip, rescale=args.rescale,
             max_depth=args.max_depth, sparse_val=args.sparse_val, normal=args.normal, 
             disp=args.use_disp, train=perform_transformation, num_samples=args.num_samples, dataset=args.dataset,
-            past_inputs=past_inputs, past_input_path=past_input_path, sampler_input=args.sampler_input )
+            past_inputs=past_inputs, past_input_path=past_input_path, sampler_input=args.sampler_input, 
+            reconstructed_folder=args.reconstructed_folder, pseudo_gt_base_path=args.pseudo_kitti_path,
+            predictaion_folder = args.prediction_folder )
     val_dataset = Dataset_loader(
             data_path, dataset.val_paths, args.input_type, resize=None,
             rotate=args.rotate, crop=crop_size, flip=args.flip, rescale=args.rescale,
             max_depth=args.max_depth, sparse_val=args.sparse_val, normal=args.normal, 
             disp=args.use_disp, train=False, num_samples=args.num_samples, dataset=args.dataset, past_inputs=past_inputs,
-            past_input_path=past_input_path, sampler_input=args.sampler_input)
+            past_input_path=past_input_path, sampler_input=args.sampler_input,
+            reconstructed_folder=args.reconstructed_folder, pseudo_gt_base_path=args.pseudo_kitti_path,
+            predictaion_folder = args.prediction_folder)
     if args.dataset =='kitti':
         val_select_dataset = Dataset_loader(
                 data_path, dataset.selected_paths, args.input_type,
                 resize=None, rotate=args.rotate, crop=crop_size,
                 flip=args.flip, rescale=args.rescale, max_depth=args.max_depth,
                 sparse_val=args.sparse_val, normal=args.normal, 
-                disp=args.use_disp, train=False, num_samples=args.num_samples, dataset=args.dataset )
+                disp=args.use_disp, train=False, num_samples=args.num_samples, dataset=args.dataset,
+                reconstructed_folder=args.reconstructed_folder, pseudo_gt_base_path=args.pseudo_kitti_path,
+                predictaion_folder = args.prediction_folder )
 
     train_sampler = None
     val_sampler = None
@@ -80,7 +86,7 @@ class Dataset_loader(Dataset):
 
     def __init__(self, data_path, dataset_type, input_type, resize,
                  rotate, crop, flip, rescale, max_depth, dataset, sparse_val=0.0, 
-                 normal=False, disp=False, train=False, num_samples=None, past_inputs = 0, past_input_path ='',sampler_input = 'gt'):
+                 normal=False, disp=False, train=False, num_samples=None, past_inputs = 0, past_input_path ='',sampler_input = 'gt',reconstructed_folder ='',pseudo_gt_base_path='',predictaion_folder =''):
 
         # Constants
         self.use_rgb = input_type == 'rgb'
@@ -98,7 +104,9 @@ class Dataset_loader(Dataset):
         self.past_inputs = past_inputs
         self.past_input_path = past_input_path
         self.sampler_input = sampler_input
-
+        self.reconstructed_folder = reconstructed_folder
+        self.pseudo_gt_base_path = pseudo_gt_base_path
+        self.predictaion_folder = predictaion_folder
         # Transformations
         self.totensor = transforms.ToTensor()
         self.center_crop = transforms.CenterCrop(size=crop)
@@ -219,7 +227,6 @@ class Dataset_loader(Dataset):
             input = torch.cat((input, img_tensor), dim=0)
         
         if (self.past_inputs != 0 and self.sampler_input != 'predict_from_past') or self.sampler_input=='pseudo_gt':
-            ## right now only support t-1 past input
             if self.dataset =='SHIFT':
                 full_file_path = self.dataset_type[self.gt_name][idx]
                 val_or_train = full_file_path[full_file_path.find('images')+7: full_file_path.find('front')- 1]
@@ -228,18 +235,9 @@ class Dataset_loader(Dataset):
                 #Current predicated depth loader
                 file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
                 sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
-                indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_sample/'
+                indices_base_path = self.reconstructed_folder
                 past_data_path = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
-                
-                # if os.path.exists(past_data_path):
-                #     with np.load(past_data_path, allow_pickle=True) as data:
-                #         indicies_current_predmap = data['a'].squeeze()
-                #         indicies_current_predmap = self.totensor(indicies_current_predmap).float()
-                        # size_tens= indicies_current_predmap.shape[1] - 1
-                        # pad = torch.zeros(1,100000-size_tens,2)
-                        # last_element =  torch.tensor([[[size_tens, size_tens]]])
-                        # big_indices = torch.cat((indicies_current_predmap, pad, last_element), dim=1)
-
+        
                 # Past depth loader
                 for i in range(1, self.past_inputs+1):
                     file_index = str(int(file_name[1: file_name.find('_')]) - 10 *i).rjust(8,'0')
@@ -260,9 +258,8 @@ class Dataset_loader(Dataset):
                 full_file_path = self.dataset_type[self.img_name][idx]
                 file_name = full_file_path[full_file_path.rfind('/'):]
                 file_index = str(int(file_name[1: file_name.find('.png')])).rjust(10,'0')
-                base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_sample/'
+                base_pass_path = self.reconstructed_folder
                 if not self.sampler_input=='pseudo_gt':
-                    # past_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                     for i in range(1, self.past_inputs+1):
                         file_index = str(int(file_name[1: file_name.find('.png')])-i).rjust(10,'0')
                         past_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind("data/")+5]+ file_index +".npz"
@@ -281,7 +278,8 @@ class Dataset_loader(Dataset):
 
                 ### the gt is pseudo gt
                 file_name_pseudo_gt = full_file_path[full_file_path.rfind('/'):]
-                pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                # pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                pseudo_gt_base_path = self.pseudo_gt_base_path
                 past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                 if os.path.exists(past_pseudogt_data_path):
                         # print(past_pseudogt_data_path)
@@ -312,7 +310,8 @@ class Dataset_loader(Dataset):
                 
                 file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
                 sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
-                indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_intime_depthmaps/'
+                indices_base_path = self.predictaion_folder
+                # indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_intime_depthmaps/'
                 # predict_input = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
                 predict_input = indices_base_path  + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
 
@@ -326,7 +325,9 @@ class Dataset_loader(Dataset):
                 return input, gt, tensor_predict_input
             else:
                 full_file_path = self.dataset_type[self.img_name][idx]
-                base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
+                # base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
+                indices_base_path = self.predictaion_folder
+
                 past_sample_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                 if os.path.exists(past_sample_data_path):
                         # print(past_pseudogt_data_path)
@@ -336,7 +337,8 @@ class Dataset_loader(Dataset):
                 else: 
                     raise Exception("No past data .npz file in {0}".format(past_sample_data_path))
 
-                pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                # pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
+                pseudo_gt_base_path = self.pseudo_gt_base_path
                 past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                 if os.path.exists(past_pseudogt_data_path):
                         # print(past_pseudogt_data_path)

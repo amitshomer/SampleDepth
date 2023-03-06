@@ -33,17 +33,7 @@ class Global_mask(nn.Module):
         nn.init.kaiming_normal_(w, mode='fan_out', nonlinearity='relu')
         nn.init.kaiming_normal_(u, mode='fan_out', nonlinearity='relu')
         self._global_mask = torch.nn.Parameter(torch.cat((w,u),dim=1))
-        
-        # if multi and batch_size>1:
-        #     # self._global_mask = torch.nn.Parameter(torch.rand(int(batch_size/2.0), 1, 256, 1216))
-        #     self._global_mask = torch.nn.Parameter(torch.cat(( torch.rand(int(batch_size/2.0), 1, 256, 1216), torch.rand(int(batch_size/2.0), 1, 256, 1216)), dim = 1))
-
-        # else:
-        #     # self._global_mask = torch.nn.Parameter(torch.rand(int(batch_size), 1, 256, 1216))
-        #     self._global_mask = torch.nn.Parameter(torch.cat(( torch.rand(int(batch_size), 1, 256, 1216), torch.rand(int(batch_size), 1, 256, 1216)), dim = 1))
-
-       
-
+    
         self.relu = torch.nn.ReLU(inplace=False)
         
         self.soft_max = nn.Softmax(dim=1)
@@ -51,21 +41,22 @@ class Global_mask(nn.Module):
         self.softargmax = Softargmax2d(initial_temperature = 0.0001)
     
     def forward(self, sampler_from: torch.tensor):
-        # global_maks_relu = torch.clamp(self.relu(self._global_mask),0,1)
         global_maks_relu = self.softargmax(self.soft_max(self._global_mask)).unsqueeze(dim=1)
-
-        # two_layer_mask = (self.soft_max(self._global_mask))
-        # layer_mask = self.softargmax(two_layer_mask).unsqueeze(dim=1)
         sample_out = global_maks_relu * sampler_from
 
         return sample_out, None , global_maks_relu
 
-    def global_mask_loss(self ):
-        mask_half = torch.ones(self._global_mask.shape).cuda() *0.5
+    # def global_mask_loss(self ):
+    #     mask_half = torch.ones(self._global_mask.shape).cuda() *0.5
         
-        out = torch.sum(torch.abs(torch.abs(self._global_mask - mask_half) - mask_half))
+    #     out = torch.sum(torch.abs(torch.abs(self._global_mask - mask_half) - mask_half))
        
-        return out
+    #     return out
+
+    
+    def sample_loss(self, pred_map, n_sample ):
+        batch_size = pred_map.size(0)
+        return torch.abs((pred_map.sum()/batch_size)-n_sample)/n_sample
 
 # if __name__ == '__main__':
 #     # model = SampleDepth(in_channels=1,

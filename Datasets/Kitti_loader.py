@@ -188,12 +188,13 @@ class Kitti_preprocessing(object):
             #     self.train_paths['gt'].append(self.train_paths['gt'][0])
             #     self.train_paths['img'].append(self.train_paths['img'][0])
             for folder in ['image_02','image_03']:
+                ## the past input folder change on getitem method
                 if past_inputs == 1:
                     self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))           
                     self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000181.png'.format(folder))
                     self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000181.png'.format(folder))
 
-                
+    
                 elif past_inputs == 2: 
                     self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png')
                     self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png')
