@@ -190,48 +190,48 @@ class Kitti_preprocessing(object):
             for folder in ['image_02','image_03']:
                 ## the past input folder change on getitem method
                 if past_inputs == 1:
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))           
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000181.png'.format(folder))
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000181.png'.format(folder))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{1}/0000000181.png'.format(self.dataset_path,folder))           
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{1}/0000000181.png'.format(self.dataset_path,folder))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/{1}/data/0000000181.png'.format(self.dataset_path,folder))
 
     
                 elif past_inputs == 2: 
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png')
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png')
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png'.format(self.dataset_path)
                             
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png')
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png')
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png'.format(self.dataset_path))
                     
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png')
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png')
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png'.format(self.dataset_path))
                 elif past_inputs == 3: 
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png')
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png')
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000183.png')
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png'.format(self.dataset_path))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000183.png'.format(self.dataset_path))
                                     
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png')
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png')
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000183.png')
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png'.format(self.dataset_path))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000183.png'.format(self.dataset_path))
                     
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png')
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png')
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000183.png')
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000181.png'.format(self.dataset_path))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000182.png'.format(self.dataset_path))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/image_02/data/0000000183.png'.format(self.dataset_path))
                 
                 elif past_inputs == 4: 
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000181.png'.format(folder))
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000182.png'.format(folder))
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000183.png'.format(folder))
-                    self.train_paths['lidar_in'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{0}/0000000184.png'.format(folder))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{1}/0000000181.png'.format(self.dataset_path,folder))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{1}/0000000182.png'.format(self.dataset_path, folder))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{1}/0000000183.png'.format(self.dataset_path, folder))
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/{1}/0000000184.png'.format(self.dataset_path, folder))
                     
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000181.png'.format(folder))
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000182.png'.format(folder))
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000183.png'.format(folder))
-                    self.train_paths['gt'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{0}/0000000184.png'.format(folder))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{1}/0000000181.png'.format(self.dataset_path, folder))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{1}/0000000182.png'.format(self.dataset_path, folder))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{1}/0000000183.png'.format(self.dataset_path,folder))
+                    self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/{1}/0000000184.png'.format(self.dataset_path, folder))
                     
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000181.png'.format(folder))
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000182.png'.format(folder))
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000183.png'.format(folder))
-                    self.train_paths['img'].remove('/data/ashomer/project/SampleDepth/Data/train/2011_09_26/2011_09_26_drive_0009_sync/{0}/data/0000000184.png'.format(folder))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/{1}/data/0000000181.png'.format(self.dataset_path, folder))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/{1}/data/0000000182.png'.format(self.dataset_path, folder))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/{1}/data/0000000183.png'.format(self.dataset_path, folder))
+                    self.train_paths['img'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/{1}/data/0000000184.png'.format(self.dataset_path, folder))
                 elif past_inputs > 4 : 
                     raise Exception("KITTI - Not supporeted right now more than 4 past frames")
 
