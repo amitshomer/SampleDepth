@@ -198,7 +198,7 @@
                 "--print_freq",
                 "20",
                 "--plot_paper",
-                "True",
+                "False",
             ]
             },
             {
@@ -235,7 +235,7 @@
                     "justMyCode": true,
                     "args": [
                         "--batch_size",
-                        "10",
+                        "1",
                         "--nworkers",
                         "8",
                         "--dataset",
@@ -243,7 +243,7 @@
                         "--multi",
                         "True",
                         "--sampler_input",
-                        "predict_from_past",
+                        "gt",
                         "--sampler_type",
                         "SampleDepth",
                         "--n_sample",
@@ -393,7 +393,7 @@
                                 "justMyCode": true,
                                 "args": [
                                     "--batch_size",
-                                    "10",
+                                    "1",
                                     "--past_inputs",
                                     "4",
                                     "--nworkers",
@@ -414,6 +414,11 @@
                                     "0.1",
                                     "--beta",
                                     "10",
+                                    "--dataset",
+                                    "SHIFT",
+                                    "--reconstructed_folder",
+                                    "/data/ashomer/project/SHIFT_dataset/pred_sample/"
+
                                 ]
                                 },
                                 {
