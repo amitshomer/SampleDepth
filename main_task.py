@@ -1,7 +1,3 @@
-"""
-Author: Wouter Van Gansbeke
-Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
-"""
 
 import argparse
 import numpy as np
@@ -76,7 +72,7 @@ parser.add_argument('--sample_method', type=str, default='random', help='random/
 
 # Paths settings
 
-base_dir_project= '/data/ashomer/project'
+base_dir_project= os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..'))
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth//Data/'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')

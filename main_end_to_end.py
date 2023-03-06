@@ -1,7 +1,3 @@
-"""
-Author: Wouter Van Gansbeke
-Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
-"""
 
 import argparse
 import numpy as np
@@ -100,14 +96,12 @@ parser.add_argument("--plot_paper", type=str2bool, nargs='?', const=True,default
 
 # Paths settings
 #TODO - remove hard pathes
-base_dir_project= '/data/ashomer/project'
+base_dir_project= os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..'))
 parser.add_argument('--save_path', default='{0}/SampleDepth/checkpoints/general_save'.format(base_dir_project), help='save path')
 parser.add_argument('--data_path', default='{0}/SampleDepth/Data/'.format(base_dir_project), help='path to desired dataset')
 parser.add_argument('--data_path_SHIFT', default='{0}/SHIFT_dataset/discrete/images'.format(base_dir_project), help='path to SHIFT dataset')
 
-#parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1/mod_adam_mse_0.001_rgb_batch18_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue/model_best_epoch_28.pth.tar', help='path to desired dataset')
-# parser.add_argument('--task_weight', default='/home/amitshomer/Documents/SampleDepth/task_checkpoint/SR1_input_gt/mod_adam_mse_0.001_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_28.pth.tar', help='path to desired dataset')
-parser.add_argument('--task_weight', default='{0}/SampleDepth/checkpoints/task_checkpoint/kitti_pseudoGT_random_19k/mod_adam_mse_0.002_rgb_batch14_pretrainTrue_wlid0.1_wrgb0.1_wguide0.1_wpred1_patience10_num_samplesNone_multiTrue_SR_2/model_best_epoch_12.pth.tar'.format(base_dir_project), help='path to desired dataset')
+
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--eval_path_random_model', default='None', help='path to desired pth to eval')
 parser.add_argument('--eval_path_PredNet', default='None', help='path to desired pth to eval')
@@ -171,17 +165,8 @@ def main():
         args.num_samples = None
     if args.val_batch_size is None:
         args.val_batch_size = args.batch_size
-    # if args.seed:
-    #     random.seed(args.seed)
-    #     torch.manual_seed(args.seed)
-        # torch.backends.cudnn.deterministic = True
-        # warnings.warn('You have chosen to seed training. '
-                      # 'This will turn on the CUDNN deterministic setting, '
-                      # 'which can slow down your training considerably! '
-                      # 'You may see unexpected behavior when restarting from checkpoints.')
 
-    # For distributed training
-    # init_distributed_mode(args)
+
 
     if not args.no_cuda and not torch.cuda.is_available():
         raise Exception("No gpu available for usage")
@@ -238,32 +223,6 @@ def main():
     checkpoint = torch.load(args.eval_path_SampleDepth)
     task_SampleDepth.load_state_dict(checkpoint['state_dict'])
 
-    ## Define the sampler
-    # if args.sampler_type == 'SampleDepth':
-    #     sampler = SampleDepth(n_sample = args.n_sample, in_channels = 1 if args.sampler_input != 'rgb' else 3)
-    #     print("Sampler: SampleDepth")
-
-    # else:
-    #     raise Exception("Sampler choosing is not corret")
-
-    # if not args.multi:
-    #     sampler = sampler.cuda()
-    # else:
-    #     sampler =torch.nn.DataParallel(sampler,device_ids = args.gpu_device).to(cuda_send)
-
-    # sampler.requires_grad_(False)
-    # sampler.eval()
-
-    # Attach sampler to task_model
-
-    # task_model.sampler = sampler
-
-
-    #learnable_params = [x for x in task_model.parameters() if x.requires_grad]
-
-    # INIT optimizer/scheduler/loss criterion
-    # optimizer = define_optim(args.optimizer, learnable_params, args.learning_rate, args.weight_decay)
-    # scheduler = define_scheduler(optimizer, args)
 
     save_id = '{}_{}_{}_{}_batch{}_pretrain{}_wlid{}_wrgb{}_wguide{}_wpred{}_patience{}_num_samples{}_multi{}_aplpha{}_beta{}_end_to_end'.\
             format(args.mod, args.loss_criterion,
@@ -295,7 +254,6 @@ def main():
 
     # Only evaluate
     print("Evaluate only")
-    # best_file_lst = glob.glob(os.path.join(args.save_path, 'model_best*'))
     best_file_lst = []
     best_file_lst.append(args.eval_path_random_model)
     if len(best_file_lst) != 0:
@@ -312,10 +270,8 @@ def main():
         print("=> no checkpoint found at due to empy list in folder {}".format(args.save_path))
     
     
-    if  args.dataset == 'kitti' :
-        validate(valid_selection_loader, task_model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide, args)
-    else: 
-        validate(valid_loader, model_random=task_model_random, predNet=predNet, task_SampleDepth=task_SampleDepth, args = args)
+
+    validate(valid_loader, model_random=task_model_random, predNet=predNet, task_SampleDepth=task_SampleDepth, args = args)
 
 
 def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
@@ -342,10 +298,6 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
     first_frames= ['00000000_img_front','00000010_img_front','00000020_img_front','00000030_img_front']
     seq_list =[]
     all_seq_list =[]
-    # Only forward pass, hence no grads needed
-    # ablation 
-    rand_hist = torch.zeros(18)
-    samp_hist = torch.zeros(18)
 
     with torch.no_grad():
         # end = time.time()
@@ -382,14 +334,6 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
                 prediction, lidar_out, precise, guide = task_SampleDepth(sample_input, epoch)
 
                 
-
-                if len(seq_list)> 25:
-                    samp_hist+=torch.histc(sample_out, bins=18, min=0.01, max=85).detach().cpu()
-                rand_samp= sample_random(gt.squeeze() , ratio = None, n_sample = args.n_sample, sample_factor_type ='n_points', batch_size = args.batch_size, cuda_send= cuda_send)
-                rand_hist+= torch.histc(rand_samp, bins=18, min=0.01, max=85).detach().cpu()
-                
-                # gt_full[gt_full>200] = 200
-                # gt_hist += torch.histc(gt_full, bins=1000, min=0.01, max=1000).detach().cpu()
             
             # Memory last predications
             if len(past_reconstruct) == 4:

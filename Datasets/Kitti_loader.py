@@ -1,7 +1,3 @@
-"""
-Author: Wouter Van Gansbeke
-Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
-"""
 
 import os
 import sys
@@ -197,7 +193,7 @@ class Kitti_preprocessing(object):
     
                 elif past_inputs == 2: 
                     self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000181.png'.format(self.dataset_path))
-                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png'.format(self.dataset_path)
+                    self.train_paths['lidar_in'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/velodyne_raw/image_02/0000000182.png'.format(self.dataset_path))
                             
                     self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000181.png'.format(self.dataset_path))
                     self.train_paths['gt'].remove('{0}/train/2011_09_26/2011_09_26_drive_0009_sync/proj_depth/groundtruth/image_02/0000000182.png'.format(self.dataset_path))

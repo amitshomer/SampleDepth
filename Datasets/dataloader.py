@@ -1,7 +1,3 @@
-"""
-Author: Wouter Van Gansbeke
-Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
-"""
 
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -278,7 +274,6 @@ class Dataset_loader(Dataset):
 
                 ### the gt is pseudo gt
                 file_name_pseudo_gt = full_file_path[full_file_path.rfind('/'):]
-                # pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
                 pseudo_gt_base_path = self.pseudo_gt_base_path
                 past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                 if os.path.exists(past_pseudogt_data_path):
@@ -311,8 +306,6 @@ class Dataset_loader(Dataset):
                 file_index = str(int(file_name[1: file_name.find('_')])).rjust(8,'0')
                 sceene_folder = full_file_path[full_file_path.find('front')+ 6: full_file_path.rfind('/')]
                 indices_base_path = self.predictaion_folder
-                # indices_base_path = '/data/ashomer/project/SHIFT_dataset/pred_intime_depthmaps/'
-                # predict_input = indices_base_path + val_or_train + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
                 predict_input = indices_base_path  + '/' + sceene_folder + '/'+ file_index+'_img_front.npz'
 
                 if os.path.exists(predict_input):
@@ -325,7 +318,6 @@ class Dataset_loader(Dataset):
                 return input, gt, tensor_predict_input
             else:
                 full_file_path = self.dataset_type[self.img_name][idx]
-                # base_pass_path = '/data/ashomer/project/SampleDepth/Data/pred_intime_depthmaps/'
                 indices_base_path = self.predictaion_folder
 
                 past_sample_data_path = base_pass_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
@@ -337,7 +329,6 @@ class Dataset_loader(Dataset):
                 else: 
                     raise Exception("No past data .npz file in {0}".format(past_sample_data_path))
 
-                # pseudo_gt_base_path = '/data/ashomer/project/SampleDepth/Data/pseudo_gt/'
                 pseudo_gt_base_path = self.pseudo_gt_base_path
                 past_pseudogt_data_path = pseudo_gt_base_path + full_file_path[full_file_path.find('Data')+5:full_file_path.rfind(".png")]+".npz"
                 if os.path.exists(past_pseudogt_data_path):
