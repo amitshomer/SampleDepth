@@ -32,10 +32,10 @@ The structure of the dataset should be as follows:
 |-- train
   |--date
     |--sequence_number
-    |--image_02
-      |--data
-        |--proj_depth
-        |img1.png, img2.png…
+      |--image_02
+        |--data
+          |--proj_depth
+          |img1.png, img2.png…
 |--val
 ```
 
