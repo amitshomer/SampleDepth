@@ -64,3 +64,20 @@ The following command can be used to evaluate our **Lower-bound*** sampler on th
 ```
 Python main_sampler.py –batch_size 1 –nworkers 8 –dataset SHIFT –multi True –sampler_input gt –sampler_type SampleDepth –n_sample 19000 –evaluate –eval_path {Path to  SHIFT_LowerBound.pth.tar}
 ```
+## Train SampleDepth
+
+### Lower bound training flow
+1. Train task network:
+```
+Python main_task.py –batch_size 20 –dataset SHIFT –nworkers 8 –multi True -n_sample 19000 –sampler_input gt –sample_factor_type 'n_points' –learning_rate 0.008
+```
+
+2. Train SampleDepth: 
+```
+python main_sampler.py --–batch_size 10 –dataset SHIFT –nworkers 8 –multi True -n_sample 19000 –sampler_input gt --learning_rate 0.0001 –alpha 0.1 –beta 20 --task_weight {path_weights_from_stage1}
+```
+
+3. Finetune SampleDepth+Task network:
+```
+python main_sampler.py --–batch_size 10 –dataset SHIFT –nworkers 8 –multi True -n_sample 19000 –sampler_input gt --learning_rate 0.0001 –alpha 0.1 –beta 10--fine_tune --finetune_path {path_weights_from_stage2 }
+```
