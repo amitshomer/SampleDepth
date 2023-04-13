@@ -9,4 +9,8 @@ If you find our work useful in your research, please consider citing:
 add citing
 ```
 ## Introduction
-We propose SampleDepth, a Convolutional Neural Network (CNN), that is suited for an adaptive LiDAR. Typically, LiDAR sampling strategy is pre-defined, con-stant and independent of the observed scene. Instead of letting a LiDAR sample the scene in this agnostic fashion, SampleDepth determines, adaptively, where it is best to sample the current frame. To do that, SampleDepth uses depth samples from previous time steps to predict a sampling mask for the current frame. Crucially, SampleDepth is trained to optimize the performance of a depth completion downstream task. SampleDepth is evaluated on two different depth completion networks and two LiDAR datasets, KITTI Depth Completion and the newly introduced synthetic dataset, SHIFT. We show that SampleDepth is effective and suitable for different depth completion downstream tasks
+We propose SampleDepth, a Convolutional Neural Network (CNN), that is suited for an adaptive LiDAR. 
+
+Typically, LiDAR sampling strategy is pre-defined, con-stant and independent of the observed scene. Instead of letting a LiDAR sample the scene in this agnostic fashion, SampleDepth determines, adaptively, where it is best to sample the current frame. To do that, SampleDepth uses depth samples from previous time steps to predict a sampling mask for the current frame. 
+
+Crucially, SampleDepth is trained to optimize the performance of a depth completion downstream task. SampleDepth is evaluated on two different depth completion networks and two LiDAR datasets, KITTI Depth Completion and the newly introduced synthetic dataset, SHIFT. We show that SampleDepth is effective and suitable for different depth completion downstream tasks
