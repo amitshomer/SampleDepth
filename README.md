@@ -53,7 +53,7 @@ The structure of the dataset should be as follows:
         |--xxxx_depth_front.png, xxxx_img_front.png
 ```
 ## Evaluate SampleDepth
-You can find and download our pre-trained weights for the SHIFT dataset for the **End-to-End** and **Lower-bound** versions [here](https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). 
+***You can find and download our pre-trained weights for the SHIFT dataset for the **End-to-End** and **Lower-bound** versions [here]***(https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). 
 
 The following command can be used to evaluate our End-to-End based PredNet sampler on the SHIFT dataset:
 ```
