@@ -20,3 +20,8 @@ Pytorch 1.9, CUDA 11.4, Ubuntu 18.04.5.
 
 Install the environment using the yml file:
 `conda env create -f environment.yml`
+
+## Dataset
+### KITTI Depth Completion
+First, download the [Depth Completion](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_completion) dataset. Next, download the RGB images from the KITTI raw dataset. 
+You may also use the script
