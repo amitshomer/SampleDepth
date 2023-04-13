@@ -90,9 +90,11 @@ python main_sampler.py --batch_size 1 --dataset SHIFT –nworkers 8 –multi Tru
 
 
 ### Adaptive PredNet
-1.1. Ensure that you have the Lower-bound weights from stage 3. They can also be found [here](https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). 
+1.
 
-1.2. All reconstructed depth maps should be saved for all datasets (train and evaluation). This code should be run after manually adding the train loader after plotting the eva loader:
+a.Ensure that you have the Lower-bound weights from stage 3. They can also be found [here](https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). 
+
+b. All reconstructed depth maps should be saved for all datasets (train and evaluation). This code should be run after manually adding the train loader after plotting the eva loader:
 ```
 python main_sampler.py --–batch_size 1 –dataset SHIFT –nworkers 8 –multi True -n_sample 19000 –sampler_input gt --learning_rate --save_pred –save_pred_path {reconstructed_folder} –evaluate –eval_path {load weight from best epoch)
 ```
