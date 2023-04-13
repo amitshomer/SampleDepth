@@ -90,15 +90,18 @@ python main_sampler.py --batch_size 1 --dataset SHIFT –nworkers 8 –multi Tru
 
 
 ### Adaptive PredNet
-1. Ensure that you have the Lower-bound weights from stage 3. They can also be found [here](https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). ***Prior to stage 2, a preprocessing step is required on the dataset. Please refer to comment 1.***
+1. Ensure that you have the Lower-bound weights from stage 3. They can also be found [here](https://drive.google.com/drive/u/0/folders/1ka-7uHzW6x2S9d67NXaZL3cnQCvdqN9p?hl=he). 
 
-2. Train PredNet(Only a prediction of the current frame based on past frames):
+2. Prior to stage 2, a preprocessing step is required on the dataset. Please refer to comment 1.
+
+3. Train PredNet(Only a prediction of the current frame based on past frames):
 ```
 python main_predict_depth.py --batch_size 10 --dataset SHIFT –nworkers 8 --multi True --model_type Unet --learning_rate 0.0001 --past_inputs 4 --reconstructed_folder {see_comment1_below}
 ```
-***Prior to stage 3, a preprocessing step is required on the dataset. Please refer to comment 2.***
 
-3. Train SampleDepth with PredNet predication prior:
+4. Prior to stage 3, a preprocessing step is required on the dataset. Please refer to comment 2.***
+
+5. Train SampleDepth with PredNet predication prior:
 ```
 python main_sampler.py --batch_size 10 --dataset SHIFT --nworkers 8 --multi True --n_sample 19000 --sampler_input gt --learning_rate 0.0001 --alpha 0.1 --beta 20 --sampler_input predict_from_past --past_inputs 4 --fine_tune --finetune_path {path from Lower-bound weights}
 ```
