@@ -66,6 +66,7 @@ Python main_sampler.py –batch_size 1 –nworkers 8 –dataset SHIFT –multi T
 ```
 
 ## Train SampleDepth
+The following command examples and hyperparameters are for the SHIFT dataset. In the attached paper supplementary, you can find the full table of hyperparameters.
 
 ### Lower bound training flow
 1. Train task network:
