@@ -23,5 +23,5 @@ Install the environment using the yml file:
 
 ## Dataset
 ### KITTI Depth Completion
-First, download the [Depth Completion](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_completion) dataset. Next, download the RGB images from the KITTI raw dataset. 
-You may also use the script
+First, download the [Depth Completion](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_completion) dataset. Next, download the RGB images from the [KITTI raw dataset](https://www.cvlibs.net/datasets/kitti/raw_data.php). 
+Additionally, we provide a script that may be used to download the dataset: `Download/download_raw_files.sh`
