@@ -99,7 +99,7 @@ python main_sampler.py --batch_size 1 --dataset SHIFT –nworkers 8 –multi Tru
 python main_predict_depth.py --batch_size 10 --dataset SHIFT –nworkers 8 --multi True --model_type Unet --learning_rate 0.0001 --past_inputs 4 --reconstructed_folder {see_comment1_below}
 ```
 
-4. Prior to stage 3, a preprocessing step is required on the dataset. Please refer to comment 2.***
+4. Prior to stage 3, a preprocessing step is required on the dataset. Please refer to comment 2.
 
 5. Train SampleDepth with PredNet predication prior:
 ```
