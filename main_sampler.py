@@ -106,6 +106,8 @@ parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help
 parser.add_argument('--save_pred_path', default='None', help='path to desired pth to eval')
 parser.add_argument('--pseudo_kitti_path', default='None', help='path to pseudo KITTI folder')
 parser.add_argument('--prediction_folder', default='None', help='path to prediction folder')
+parser.add_argument('--reconstructed_folder', default='None', help='path to reconstructed maps')
+
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')

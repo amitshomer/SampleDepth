@@ -1,6 +1,8 @@
+
 """
-Author: Wouter Van Gansbeke
+Original author: Wouter Van Gansbeke
 Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
+Modified by: Amit Shomer
 """
 
 import matplotlib
@@ -14,6 +16,8 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 import torch.optim
+
+
 from torch.optim import lr_scheduler
 import errno
 import sys
