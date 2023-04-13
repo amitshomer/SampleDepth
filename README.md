@@ -113,3 +113,5 @@ python main_predict_depth.py –batch_size 1 –dataset SHIFT –nworkers 8—mu
 python main_sampler.py --batch_size 10 --dataset SHIFT --nworkers 8 --multi True --n_sample 19000 --sampler_input gt --learning_rate 0.0001 --alpha 0.1 --beta 20 --sampler_input predict_from_past --past_inputs 4 --fine_tune --finetune_path {path from Lower-bound weights}
 ```
 
+## Acknowledgment
+This code builds upon the code provided in [Sparse-Depth-Completion](https://github.com/wvangansbeke/Sparse-Depth-Completion). We thank the authors for sharing their code.
