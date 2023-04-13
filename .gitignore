@@ -6,3 +6,4 @@ visual/
 visual_backup/
 ChamferDistancePytorch/
 .vscode/launch.json
+.vscode/settings.json
