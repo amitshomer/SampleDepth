@@ -6,7 +6,12 @@ This repo contains the implementation of our paper [Prior based Sampling for Ada
 ## Citation
 If you find our work useful in your research, please consider citing: 
 ```
-add citing
+@article{shomer2023prior,
+  title={Prior based Sampling for Adaptive LiDAR},
+  author={Shomer, Amit and Avidan, Shai},
+  journal={arXiv preprint arXiv:2304.07099},
+  year={2023}
+}
 ```
 ## Introduction
 We propose SampleDepth, a Convolutional Neural Network (CNN), that is suited for an adaptive LiDAR. 
