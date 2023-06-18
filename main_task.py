@@ -80,7 +80,9 @@ parser.add_argument('--erfnet_weight', default='{0}/SampleDepth/checkpoints/task
 parser.add_argument('--eval_path', default='None', help='path to desired pth to eval')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
 parser.add_argument('--save_pred_path', default='None', help='path to desired pth to eval')
-
+parser.add_argument('--reconstructed_folder', default='None', help='path to reconstructed maps')
+parser.add_argument('--pseudo_kitti_path', default='None', help='path to pseudo KITTI folder')
+parser.add_argument('--prediction_folder', default='None', help='path to prediction folder')
 
 # Optimizer settings
 parser.add_argument('--optimizer', type=str, default='adam', help='adam or sgd')
@@ -108,7 +110,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2])
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
 parser.add_argument("--seed", type=str2bool, nargs='?', const=True,
@@ -229,7 +231,6 @@ def main():
         if  args.dataset == 'kitti' :
             validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
             validate(valid_selection_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
-
         else: 
             validate(valid_loader, model, criterion_lidar, criterion_rgb, criterion_local, criterion_guide)
         return
@@ -329,6 +330,8 @@ def main():
             else:
                 raise ValueError('input to Sampler is not valid')
             
+            # add gaussian noise
+            input[:,0,:,:] = torch.randn(input[:,0,:,:].size()).to(cuda_send)*0.1*input[:,0,:,:]+input[:,0,:,:]
 
             # Sample augmantion from sparse input (lidar)
             if args.sample_factor_type != 'None':
@@ -468,6 +471,9 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                     new_input = input[:,0,:,:] * mask
                     new_input = sample_random(new_input , args.sample_ratio, args.n_sample, args.sample_factor_type, args.batch_size)
                     input[:,0,:,:] = new_input
+            
+            # add gaussian noise
+            input[:,0,:,:] = torch.randn(input[:,0,:,:].size()).to(cuda_send)*0.1*input[:,0,:,:]+input[:,0,:,:]
 
             list_n_pooints.append(torch.count_nonzero(input[:,0,:,:]).item()/args.batch_size)
             prediction, lidar_out, precise, guide = model(input, epoch)

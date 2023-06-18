@@ -1,5 +1,9 @@
 
-
+"""
+Original author: Wouter Van Gansbeke
+Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
+Modified by: Amit Shomer
+"""
 import os
 import sys
 import re

@@ -419,9 +419,10 @@ class SampleDepth(nn.Module):
         x = self.conv_final(x) #  B x C=2 x H x W 
 
         bin_pred_map = self.soft_max(x)
-        
-        pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
-
+        if module.training:
+            pred_map = self.softargmax(bin_pred_map).unsqueeze(dim=1)
+        else:
+            pred_map = torch.argmax(bin_pred_map, dim=1).unsqueeze(dim=1)
         sample_out = pred_map * sampler_from
 
         return sample_out, bin_pred_map, pred_map

@@ -16,6 +16,7 @@ import warnings
 import random
 import matplotlib.pyplot as plt
 from Models.PredNet import PredNet
+import numpy as np
 
 from datetime import datetime
 from Models.SampleDepth import SampleDepth
@@ -106,7 +107,9 @@ parser.add_argument('--eval_path', default='None', help='path to desired pth to 
 parser.add_argument('--eval_path_random_model', default='None', help='path to desired pth to eval')
 parser.add_argument('--eval_path_PredNet', default='None', help='path to desired pth to eval')
 parser.add_argument('--eval_path_SampleDepth', default='None', help='path to desired pth to eval')
-
+parser.add_argument('--pseudo_kitti_path', default='None', help='path to pseudo KITTI folder')
+parser.add_argument('--prediction_folder', default='None', help='path to prediction folder')
+parser.add_argument('--reconstructed_folder', default='None', help='path to reconstructed maps')
 
 parser.add_argument('--finetune_path', default='None', help='path to all network for fine tune')
 parser.add_argument("--save_pred", type=str2bool, nargs='?', default=False, help="Save the predication as .npz")
@@ -138,7 +141,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[3])
 
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
@@ -298,7 +301,7 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
     first_frames= ['00000000_img_front','00000010_img_front','00000020_img_front','00000030_img_front']
     seq_list =[]
     all_seq_list =[]
-
+    times=[]
     with torch.no_grad():
         # end = time.time()
         for i, (input, gt, predict_input,_) in tqdm(enumerate(loader)):
@@ -310,8 +313,7 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
                 else:
                     input, gt, predict_input = input.to(cuda_send), gt.to(cuda_send), predict_input.to(cuda_send)
             
-                start_samp = time.time()
-            
+                        
             current_frame_name = predict_input[0][predict_input[0].find('/')+1:]
             # Random sampling for 4 first frames
             if current_frame_name in first_frames:
@@ -339,7 +341,7 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
             if len(past_reconstruct) == 4:
                 past_reconstruct.pop()
             past_reconstruct.insert(0, prediction)
-
+                        
             if args.plot_paper: 
                 if args.sampler_input =='gt':
                     plot_images(rgb=input[:,1:4,:,:], gt=gt, sample_map=sample_out , sceene_num = sceene_num, pred_depth_com =prediction )
@@ -360,6 +362,7 @@ def validate(loader, model_random, predNet, task_SampleDepth, args, epoch=0):
                 print('Test: [{0}/{1}]\t'
                     'Metric {score.val:.4f} ({score.avg:.4f})'.format(
                     i+1, len(loader), score=score))
+                print(np.mean(time_list))
     
         avg_point_per_image = np.mean(list_n_pooints)
         print("avergae time per image:")

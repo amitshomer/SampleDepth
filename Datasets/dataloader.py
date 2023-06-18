@@ -1,4 +1,10 @@
 
+"""
+Original author: Wouter Van Gansbeke
+Licensed under the CC BY-NC 4.0 license (https://creativecommons.org/licenses/by-nc/4.0/)
+Modified by: Amit Shomer
+"""
+
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils

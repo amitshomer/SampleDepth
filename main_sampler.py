@@ -135,7 +135,7 @@ parser.add_argument('--wguide', type=float, default=0.1, help="weight base loss"
 parser.add_argument("--cudnn", type=str2bool, nargs='?', const=True,
                     default=True, help="cudnn optimization active")
 parser.add_argument('--gpu_ids', default='1', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument("--gpu_device",type=int, nargs="+", default=[0])
+parser.add_argument("--gpu_device",type=int, nargs="+", default=[0,1,2,3])
 
 parser.add_argument("--multi", type=str2bool, nargs='?', const=True,
                     default=True, help="use multiple gpus")
@@ -370,12 +370,17 @@ def main():
 
             input, gt =  input.to(cuda_send), gt.to(cuda_send)
 
+            # add gaussian noise
+            noise_input =  torch.randn(gt.size()).to(cuda_send)*0.1*gt+gt
+            
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = task_model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
-            
+           
             elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 if args.sampler_type =='SampleDepth':
-                    sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
+                    #sample_out, bin_pred_map, pred_map = task_model.sampler(input=gt, sampler_from=gt)
+                    sample_out, bin_pred_map, pred_map = task_model.sampler(input=noise_input, sampler_from=gt)
+
                 elif args.sampler_type == 'global_mask':
                     sample_out, bin_pred_map, pred_map = task_model.sampler(sampler_from=gt)
 
@@ -392,6 +397,7 @@ def main():
                 raise ValueError('input to Sampler is not valid')
 
             
+
             sample_input = torch.cat((sample_out, input[:,1:4,:,:]), dim = 1)
             
             if args.sampler_type == 'global_mask':
@@ -454,7 +460,7 @@ def main():
             # Time trainig iteration
             batch_time.update(time.time() - end)
             end = time.time()
-
+            break
             # Print info
             if (i + 1) % args.print_freq == 0:
                 print('Epoch: [{0}][{1}/{2}]\t'
@@ -572,15 +578,19 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                 if not isinstance(seg, list):
                     seg = seg.to(cuda_send)
             
-                start_samp = time.time()
+            start_samp = time.time()
 
-                
+            # # add gaussian noise
+            # noise_input =  torch.randn(gt.size()).to(cuda_send)*0.1*gt+gt
+
             if args.sampler_input == "sparse_input":
                 sample_out, bin_pred_map, pred_map = model.sampler(input = input[:,0,:,:].unsqueeze(dim =1), sampler_from=input[:,0,:,:].unsqueeze(dim =1)) 
            
             elif args.sampler_input == "gt" or args.sampler_input =='pseudo_gt':
                 if args.sampler_type =='SampleDepth':
                     sample_out, bin_pred_map, pred_map = model.sampler(input=gt, sampler_from=gt)
+                    # sample_out, bin_pred_map, pred_map = model.sampler(input=noise_input, sampler_from=gt)
+
                 elif args.sampler_type == 'global_mask':
                     sample_out, bin_pred_map, pred_map = model.sampler(sampler_from=gt)
 
@@ -659,7 +669,8 @@ def validate(loader, model, criterion_lidar, criterion_rgb, criterion_local, cri
                     'Metric {score.val:.4f} ({score.avg:.4f})'.format(
                     i+1, len(loader), loss=losses,task_loss = task_loss, samp_loss = samp_loss,
                     score=score))
-    
+            if i==1400:
+                break
         avg_point_per_image = np.mean(list_n_pooints)
         print("avergae time per image:")
         print(np.mean(time_list))
